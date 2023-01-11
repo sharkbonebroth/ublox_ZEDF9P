@@ -89,7 +89,7 @@ inline int received_message_length(const uint8_t* data_stream) {
 /**
  * @brief Get the length of configuration data from its key
  * @param key the key to evaluate
- * @return uint32_t 
+ * @return uint32_t The configuration data length in bytes
  */
 inline int configuration_data_length_from_key(const uint32_t key) {
   uint32_t tmp = key >> 28;

@@ -24,14 +24,14 @@ struct Valset {
   inline static uint32_t serialized_length(const Valset &message);
 
   /**
-   * @brief Adds a configuration to the Valset message4
-   * @tparam size the size of the configuration to be set
+   * @brief Adds a configuration to the Valset message
+   * @tparam config_data_type the data type of the configuration to be set
    * @param key the key of the configuration to be set
    * @param data the data containing the configuration
    * @return true if the configuration is successfully added
    */
-  template <std::size_t size>
-  bool add_config(uint32_t key, const std::array<uint8_t, size>& data);
+  template <typename config_data_type>
+  bool add_config(uint32_t key, config_data_type& data);
 
   Valset() {
     reserved.fill(0);
@@ -67,22 +67,20 @@ uint32_t Valset::serialized_length(const Valset &message) {
   return 4 + message.cfgData.size();
 }
 
-template <std::size_t size>
-bool Valset::add_config(const uint32_t key, const std::array<uint8_t, size>& data){
-  // Verify that the data length matches what is mentioned in the key
-  if (num_configs == 64 || configuration_data_length_from_key(key) != static_cast<int>(data.size())) {
-    // std::cout << "desired data len: " << std::dec << configuration_data_length_from_key(key) << " but " << static_cast<int>(data.size()) << " bytes provided" << std::endl;
+template <typename config_data_type>
+bool Valset::add_config(uint32_t key, config_data_type& data) {
+  // Verify that the data length matches what is mentioned in the key, and the max number of configs have not been added yet
+  if (num_configs == 64 || configuration_data_length_from_key(key) != sizeof(config_data_type)) {
+    // std::cout << "desired data len: " << std::dec << configuration_data_length_from_key(key) << " but " << static_cast<int>(sizeof(config_data_type)) << " bytes provided" << std::endl;
     return false;
   }
 
-  // std::cout << "desired data len: " << std::dec << configuration_data_length_from_key(key) << std::endl;
-  // std::cout << std::dec << static_cast<int>(data.size()) << " bytes provided" << std::endl;
   // Copy the key
-  uint8_t* key_data = reinterpret_cast<uint8_t*>(const_cast<uint32_t*>(&key));
+  uint8_t* key_data = reinterpret_cast<uint8_t*>(&key);
   cfgData.insert(cfgData.end(), key_data, key_data + 4);
 
   // Then copy the data
-  cfgData.insert(cfgData.end(), data.data(), data.data() + data.size());
+  cfgData.insert(cfgData.end(), reinterpret_cast<uint8_t*>(&data), reinterpret_cast<uint8_t*>(&data) + sizeof(config_data_type));
 
   num_configs++;
   return true;

@@ -145,18 +145,11 @@ class ublox_ZEDF9P {
   /**
    * @brief Configure the U-Blox send rate of the message & subscribe to the
    * given message
-   * @param the callback handler for the message
-   * @param rate the rate in Hz of the message
+   * @param callback the callback handler for the message
+   * @param rate the message rate in Hz of the message, defaults to 1
    */
   template <typename T>
-  void subscribe(typename CallbackHandler_<T>::Callback callback,
-                 unsigned int rate);
-  /**
-   * @brief Subscribe to the given Ublox message.
-   * @param the callback handler for the message
-   */
-  template <typename T>
-  void subscribe(typename CallbackHandler_<T>::Callback callback);
+  void subscribe(typename CallbackHandler_<T>::Callback callback, uint8_t rate = 1);
 
   /**
    * @brief Subscribe to the given Ublox message.
@@ -242,6 +235,12 @@ class ublox_ZEDF9P {
    */
   ublox_msgs::MONVER poll_MONVER();
 
+  /**
+   * @brief Polls the input Valget message and stores the recieved config values in it
+   * @param Valget_msg the Valget message with the relevant config keys added
+   */
+  void poll_Valget(ublox_msgs::Valget& Valget_msg);
+
   inline void set_debug_level(const int debug_level) {
     debug_level_ = debug_level;
     callbacks_.set_debug_level(debug_level);
@@ -304,10 +303,11 @@ class ublox_ZEDF9P {
   std::string host_, port_;
 };
 
-
 template <typename T>
-void ublox_ZEDF9P::subscribe(typename CallbackHandler_<T>::Callback callback) {
+void ublox_ZEDF9P::subscribe(typename CallbackHandler_<T>::Callback callback, uint8_t rate) {
   callbacks_.insert<T>(callback);
+
+  setRate(T::CLASS_ID, T::MESSAGE_ID, rate);
 }
 
 template <typename T>

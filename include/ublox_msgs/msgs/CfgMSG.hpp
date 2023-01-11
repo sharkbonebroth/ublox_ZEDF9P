@@ -5,9 +5,10 @@
 namespace ublox_msgs {
 
 /**
- * @brief A ublox message for setting the rate of publishing of a ublox message
- * note that this is suppodedly deprecated, but seems like we still need to send this to get the
- * gps to publish
+ * @brief A ublox message for setting the MESSAGE SEND RATE of publishing of a ublox message
+ * Send rate is relative to the event a message is registered on. For example, if the rate of a navigation
+ * message is set to 2, the message is sent every second navigation solution. For configuring NMEA
+ * messages, the section NMEA Messages Overview describes class and identifier numbers used.
  */
 struct CfgMSG {
 

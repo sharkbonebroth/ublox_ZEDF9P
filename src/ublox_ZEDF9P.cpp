@@ -407,4 +407,16 @@ ublox_msgs::MONVER ublox_ZEDF9P::poll_MONVER() {
   return MONVER_msg;
 }
 
+void ublox_ZEDF9P::poll_Valget(ublox_msgs::Valget& Valget_msg) {
+  int payload_length = static_cast<int>(ublox_msgs::Valget::serialized_length(Valget_msg));
+
+  uint8_t payload[payload_length];
+  ublox_msgs::Valget::write_to_data_stream(payload, Valget_msg);
+
+  std::vector<uint8_t> payload_vec;
+  payload_vec.insert(payload_vec.end(), payload, payload + payload_length);
+
+  poll(Valget_msg, payload_vec);
+}
+
 }  // namespace ublox_ZEDF9P

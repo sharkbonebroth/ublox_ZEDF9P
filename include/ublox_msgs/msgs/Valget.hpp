@@ -33,6 +33,16 @@ struct Valget {
    */
   inline static void initialize_from_stream(uint8_t* data_stream, Valget &message);
 
+  /**
+   * @brief Given a key, get config data from received_configs
+   * @tparam config_data_type The data type to retrieve from the key
+   * @param config_data_var The variable to write to
+   * @param key The requested key
+   * @return true if config data is successfully retrived from received_configs, false otherwise
+   */
+  template <typename config_data_type>
+  inline bool get_config_data(config_data_type& config_data_var, const uint32_t key);
+
   uint8_t version = 0;
   uint8_t layer = 0;
   uint16_t position = 0;
@@ -92,5 +102,19 @@ void Valget::initialize_from_stream(uint8_t* data_stream, Valget &message) {
     }
   }
 }
+
+template <typename config_data_type>
+bool Valget::get_config_data(config_data_type& config_data_var, const uint32_t key) {
+  auto config_data = received_configs.find(key);
+
+  // Return false if key is not found
+  if (config_data == received_configs.end()) {
+    return false;
+  }
+  
+  config_data_var = *reinterpret_cast<config_data_type*>(config_data->second.data());
+  return true;
+}
+
 
 } // namespace ublox_msgs

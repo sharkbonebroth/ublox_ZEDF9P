@@ -1,12 +1,12 @@
 #pragma once
 
-#include "ublox_msgs/rx/Ack.hpp"
-#include "ublox_msgs/rx/NavPVT.hpp"
-#include "ublox_msgs/rx/MONVER.hpp"
-#include "ublox_msgs/tx/Valset.hpp"
-#include "ublox_msgs/tx/Valget.hpp"
-#include "ublox_msgs/tx/CfgRST.hpp"
-#include "ublox_msgs/tx/CfgMSG.hpp"
+#include "ublox_msgs/msgs/Ack.hpp"
+#include "ublox_msgs/msgs/NavPVT.hpp"
+#include "ublox_msgs/msgs/MONVER.hpp"
+#include "ublox_msgs/msgs/Valset.hpp"
+#include "ublox_msgs/msgs/Valget.hpp"
+#include "ublox_msgs/msgs/CfgRST.hpp"
+#include "ublox_msgs/msgs/CfgMSG.hpp"
 
 namespace ublox_msgs {
 
