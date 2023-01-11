@@ -40,8 +40,6 @@
 
 namespace ublox_ZEDF9P {
 
-extern int debug; //!< Used to determine which debug messages to display
-
 /**
  * @brief Handles Asynchronous I/O reading and writing.
  */
@@ -185,7 +183,7 @@ void AsyncWorker<StreamT>::doWrite() {
   // Write all the data in the out buffer
   boost::asio::write(*stream_, boost::asio::buffer(out_.data(), out_.size()));
 
-  if (debug >= 2) {
+  if (debug_level_ >= 2) {
     // Print the data that was sent
     std::ostringstream oss;
     for (std::vector<unsigned char>::iterator it = out_.begin();
@@ -211,7 +209,7 @@ inline void AsyncWorker<boost::asio::ip::udp::socket>::doWrite() {
   // Write all the data in the out buffer
   stream_->send(boost::asio::buffer(out_.data(), out_.size()));
 
-  if (debug >= 2) {
+  if (debug_level_ >= 2) {
     // Print the data that was sent
     std::ostringstream oss;
     for (std::vector<unsigned char>::iterator it = out_.begin();
@@ -266,7 +264,7 @@ void AsyncWorker<StreamT>::readEnd(const boost::system::error_code& error,
     if (write_callback_)
       write_callback_(pRawDataStart, raw_data_stream_size);
 
-    if (debug >= 4) {
+    if (debug_level_ >= 4) {
       std::ostringstream oss;
       for (std::vector<unsigned char>::iterator it =
                in_.begin() + in_buffer_size_ - bytes_transfered;

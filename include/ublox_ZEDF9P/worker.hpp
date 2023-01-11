@@ -37,7 +37,7 @@ namespace ublox_ZEDF9P {
  * @brief Handles I/O reading and writing.
  */
 class Worker {
- public:
+public:
   typedef boost::function<void(unsigned char*, std::size_t&)> Callback;
   virtual ~Worker() {}
 
@@ -72,6 +72,14 @@ class Worker {
   virtual bool isOpen() const = 0;
 
   unsigned int baudrate_ = 0;
+
+  inline void set_debug_level(const int debug_level) {
+    debug_level_ = debug_level;
+  }
+
+protected:
+  int debug_level_ = 0;
+
 };
 
 }  // namespace ublox_ZEDF9P

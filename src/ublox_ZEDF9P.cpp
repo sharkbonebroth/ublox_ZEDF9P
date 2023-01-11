@@ -28,15 +28,11 @@
 //==============================================================================
 
 #include "ublox_ZEDF9P/ublox_ZEDF9P.hpp"
+#include "ublox_ZEDF9P/logging.hpp"
+
 #include <boost/version.hpp>
 
-#define RESET_FORMATTING   "\033[0m"
-#define SUCCESS            "\033[32m"
-#define FAILURE            "\033[31m"
-
 namespace ublox_ZEDF9P {
-
-int debug = 3; //!< Used to determine which debug messages to display
 
 using namespace ublox_msgs;
 
@@ -56,6 +52,7 @@ ublox_ZEDF9P::~ublox_ZEDF9P() { close(); }
 void ublox_ZEDF9P::setWorker(const boost::shared_ptr<Worker>& worker) {
   if (worker_) return;
   worker_ = worker;
+  worker_->set_debug_level(debug_level_);
   worker_->setCallback(boost::bind(&CallbackHandlers::readCallback,
                                    &callbacks_, _1, _2));
   configured_ = static_cast<bool>(worker);
@@ -78,7 +75,7 @@ void ublox_ZEDF9P::processAck(const ublox_msgs::Ack &m) {
   ack.msg_id = m.msgID;
   // store the ack atomically
   ack_.store(ack, boost::memory_order_seq_cst);
-  if (debug >= 2) {
+  if (debug_level_ >= 2) {
     std::cout << SUCCESS
               << "U-blox: received ACK: " 
               << std::hex << static_cast<int>(m.clsID ) 
@@ -127,7 +124,7 @@ void ublox_ZEDF9P::initializeSerial(std::string port, unsigned int baudrate) {
                              + port + " " + e.what());
   }
 
-  std::cout << ("U-Blox: Opened serial port %s", port.c_str()) << std::endl;
+  std::cout << SUCCESS << "U-Blox: Opened serial port  " << port << RESET_FORMATTING << std::endl;
     
   if(BOOST_VERSION < 106600)
   {
@@ -189,7 +186,7 @@ void ublox_ZEDF9P::resetSerial(std::string port, unsigned int baudrate) {
                              + port + " " + e.what());
   }
 
-  std::cout << ("U-Blox: Reset serial port %s", port.c_str()) << std::endl;
+  std::cout << SUCCESS << "U-Blox: Successfully reset and reopened serial port " << port << RESET_FORMATTING << std::endl;
 
   // Set the I/O worker
   if (worker_) return;
@@ -212,7 +209,7 @@ void ublox_ZEDF9P::resetSerial(std::string port, unsigned int baudrate) {
     boost::this_thread::sleep(
         boost::posix_time::milliseconds(kSetBaudrateSleepMs));
     serial->get_option(current_baudrate);
-    std:: cout << ("U-Blox: Reset serial port: Set ASIO baudrate to %u", current_baudrate.value()) << std::endl;
+    std::cout << "U-Blox: Reset serial port: Set ASIO baudrate to " << current_baudrate.value() << std::endl;
   }
 
   if (test_serial()) {
@@ -295,7 +292,7 @@ void ublox_ZEDF9P::initializeUdp(std::string host, std::string port) {
 }
 
 bool ublox_ZEDF9P::setRate(uint8_t class_id, uint8_t message_id, uint8_t rate) {
-  if (debug >= 2) {
+  if (debug_level_ >= 2) {
     std::cout << "Setting rate to "
               << std::dec << static_cast<int>(rate)
               << " for "
@@ -357,7 +354,7 @@ bool ublox_ZEDF9P::poll(uint8_t class_id, uint8_t message_id,
 
 bool ublox_ZEDF9P::waitForAcknowledge(const boost::posix_time::time_duration& timeout,
                              uint8_t class_id, uint8_t msg_id) {
-  if (debug >= 2) {
+  if (debug_level_ >= 2) {
     std::cout << "Waiting for ACK " 
               << std::hex << static_cast<int>(class_id)
               << " / "
@@ -384,6 +381,30 @@ bool ublox_ZEDF9P::waitForAcknowledge(const boost::posix_time::time_duration& ti
 void ublox_ZEDF9P::setRawDataCallback(const Worker::Callback& callback) {
   if (! worker_) return;
   worker_->setRawDataCallback(callback);
+}
+
+ublox_msgs::MONVER ublox_ZEDF9P::poll_MONVER() {
+  ublox_msgs::MONVER MONVER_msg;
+  poll(MONVER_msg);
+
+  if (debug_level_ >= 1) {
+    char swVersion_char[30];
+    char hwVersion_char[10];
+    std::memcpy(swVersion_char, MONVER_msg.swVersion.data(), 30);
+    std::cout << YELLOW << "ublox_ZEDF9P software version: " << swVersion_char << RESET_FORMATTING << std::endl;
+
+    std::memcpy(hwVersion_char, MONVER_msg.hwVersion.data(), 10);
+    std::cout << YELLOW << "ublox_ZEDF9P hardware version: " << hwVersion_char << RESET_FORMATTING << std::endl;
+    
+    for (std::array<uint8_t, 30> extended_data: MONVER_msg.extension) {
+      char extended_data_char[30];
+      std::memcpy(extended_data_char, extended_data.data(), 30);
+      std::cout << YELLOW << extended_data_char << RESET_FORMATTING << std::endl;
+    }
+
+  }
+
+  return MONVER_msg;
 }
 
 }  // namespace ublox_ZEDF9P

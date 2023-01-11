@@ -236,6 +236,17 @@ class ublox_ZEDF9P {
    */
   void setRawDataCallback(const Worker::Callback& callback);
 
+  /**
+   * @brief Polls the MONVER message to check hw and sw version. 
+   * @return a ublox_msg::MONVER message containing the hw and
+   */
+  ublox_msgs::MONVER poll_MONVER();
+
+  inline void set_debug_level(const int debug_level) {
+    debug_level_ = debug_level;
+    callbacks_.set_debug_level(debug_level);
+  }
+
  private:
   //! Types for ACK/NACK messages, WAIT is used when waiting for an ACK
   enum AckType {
@@ -279,6 +290,8 @@ class ublox_ZEDF9P {
   //! Whether or not the I/O port has been configured
   bool configured_;
 
+  //! Defaults to 0
+  int debug_level_ = 0;
 
   //! The default timeout for ACK messages
   static const boost::posix_time::time_duration default_timeout_;

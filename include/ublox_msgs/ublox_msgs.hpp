@@ -2,6 +2,7 @@
 
 #include "ublox_msgs/rx/Ack.hpp"
 #include "ublox_msgs/rx/NavPVT.hpp"
+#include "ublox_msgs/rx/MONVER.hpp"
 #include "ublox_msgs/tx/Valset.hpp"
 #include "ublox_msgs/tx/Valget.hpp"
 #include "ublox_msgs/tx/CfgRST.hpp"

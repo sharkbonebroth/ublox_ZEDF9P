@@ -53,9 +53,15 @@ class CallbackHandler {
     return condition_.timed_wait(lock, timeout);
   }
 
+  inline void set_debug_level(const int level) {
+    debug_level_ = level;
+  }
+
  protected:
   boost::mutex mutex_; //!< Lock for the handler
   boost::condition_variable condition_; //!< Condition for the handler lock
+
+  int debug_level_ = 0;
 };
 
 /**
@@ -86,7 +92,7 @@ class CallbackHandler_ : public CallbackHandler {
     boost::mutex::scoped_lock lock(mutex_);
     try {
       if (!reader.read<T>(message_)) {
-        if (debug >= 2) {
+        if (debug_level_ >= 2) {
           std::cout << "U-Blox Decoder error for " 
                     << std::hex << static_cast<int>(reader.classId())
                     << " / "
@@ -99,7 +105,7 @@ class CallbackHandler_ : public CallbackHandler {
         return;
       }
     } catch (std::runtime_error& e) {
-        if (debug >= 2) {
+        if (debug_level_ >= 2) {
           std::cout << "U-Blox Decoder error for " 
                     << std::hex << static_cast<int>(reader.classId())
                     << " / "
@@ -135,6 +141,7 @@ class CallbackHandlers {
   void insert(typename CallbackHandler_<T>::Callback callback) {
     boost::mutex::scoped_lock lock(callback_mutex_);
     CallbackHandler_<T>* handler = new CallbackHandler_<T>(callback);
+    handler->set_debug_level(debug_level_);
     callbacks_.insert(
       std::make_pair(std::make_pair(T::CLASS_ID, T::MESSAGE_ID),
                      boost::shared_ptr<CallbackHandler>(handler)));
@@ -154,6 +161,7 @@ class CallbackHandlers {
       unsigned int message_id) {
     boost::mutex::scoped_lock lock(callback_mutex_);
     CallbackHandler_<T>* handler = new CallbackHandler_<T>(callback);
+    handler->set_debug_level(debug_level_);
     callbacks_.insert(
       std::make_pair(std::make_pair(T::CLASS_ID, message_id),
                      boost::shared_ptr<CallbackHandler>(handler)));
@@ -215,6 +223,7 @@ class CallbackHandlers {
     // Create a callback handler for this message
     callback_mutex_.lock();
     CallbackHandler_<T>* handler = new CallbackHandler_<T>();
+    handler->set_debug_level(debug_level_);
     Callbacks::iterator callback = callbacks_.insert(
       (std::make_pair(std::make_pair(T::CLASS_ID, T::MESSAGE_ID),
                       boost::shared_ptr<CallbackHandler>(handler))));
@@ -243,7 +252,7 @@ class CallbackHandlers {
     ublox::Reader reader(data, size);
     // Read all U-Blox messages in buffer
     while (reader.search() != reader.end() && reader.found()) {
-      if (debug >= 3) {
+      if (debug_level_ >= 3) {
         // Print the received bytes
         std::ostringstream oss;
         for (ublox::Reader::iterator it = reader.pos();
@@ -264,6 +273,10 @@ class CallbackHandlers {
     size -= reader.pos() - data;
   }
 
+  inline void set_debug_level(int debug_level) {
+    debug_level_ = debug_level;
+  }
+
  private:
   typedef std::multimap<std::pair<uint8_t, uint8_t>,
                         boost::shared_ptr<CallbackHandler> > Callbacks;
@@ -274,6 +287,8 @@ class CallbackHandlers {
   
   //! Callback handler for nmea messages
   boost::function<void(const std::string&)> callback_nmea_;
+
+  int debug_level_ = 0;
 };
 
 }  // namespace ublox_gps

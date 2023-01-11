@@ -71,12 +71,12 @@ template <std::size_t size>
 bool Valset::add_config(const uint32_t key, const std::array<uint8_t, size>& data){
   // Verify that the data length matches what is mentioned in the key
   if (num_configs == 64 || configuration_data_length_from_key(key) != static_cast<int>(data.size())) {
-    std::cout << "desired data len: " << std::dec << configuration_data_length_from_key(key) << " but " << static_cast<int>(data.size()) << " bytes provided" << std::endl;
+    // std::cout << "desired data len: " << std::dec << configuration_data_length_from_key(key) << " but " << static_cast<int>(data.size()) << " bytes provided" << std::endl;
     return false;
   }
 
-  std::cout << "desired data len: " << std::dec << configuration_data_length_from_key(key) << std::endl;
-  std::cout << std::dec << static_cast<int>(data.size()) << " bytes provided" << std::endl;
+  // std::cout << "desired data len: " << std::dec << configuration_data_length_from_key(key) << std::endl;
+  // std::cout << std::dec << static_cast<int>(data.size()) << " bytes provided" << std::endl;
   // Copy the key
   uint8_t* key_data = reinterpret_cast<uint8_t*>(const_cast<uint32_t*>(&key));
   cfgData.insert(cfgData.end(), key_data, key_data + 4);
