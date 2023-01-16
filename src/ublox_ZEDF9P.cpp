@@ -49,7 +49,7 @@ ublox_ZEDF9P::ublox_ZEDF9P() : configured_(false) {
 
 ublox_ZEDF9P::~ublox_ZEDF9P() { close(); }
 
-void ublox_ZEDF9P::setWorker(const boost::shared_ptr<Worker>& worker) {
+void ublox_ZEDF9P::setWorker(const std::shared_ptr<Worker>& worker) {
   if (worker_) return;
   worker_ = worker;
   worker_->set_debug_level(debug_level_);
@@ -74,7 +74,7 @@ void ublox_ZEDF9P::processAck(const ublox_msgs::Ack &m) {
   ack.class_id = m.clsID;
   ack.msg_id = m.msgID;
   // store the ack atomically
-  ack_.store(ack, boost::memory_order_seq_cst);
+  ack_.store(ack, std::memory_order_seq_cst);
   if (debug_level_ >= 2) {
     std::cout << SUCCESS
               << "U-blox: received ACK: " 
@@ -93,7 +93,7 @@ void ublox_ZEDF9P::processNack(const ublox_msgs::Ack &m) {
   ack.class_id = m.clsID;
   ack.msg_id = m.msgID;
   // store the ack atomically
-  ack_.store(ack, boost::memory_order_seq_cst);
+  ack_.store(ack, std::memory_order_seq_cst);
   std::cout << FAILURE 
             << "U-blox: received NACK: " 
             << std::hex << static_cast<int>(m.clsID) 
@@ -111,59 +111,11 @@ bool ublox_ZEDF9P::test_serial() {
 
 void ublox_ZEDF9P::initializeSerial(std::string port, unsigned int baudrate) {
   port_ = port;
-  boost::shared_ptr<boost::asio::io_service> io_service(
-      new boost::asio::io_service);
-  boost::shared_ptr<boost::asio::serial_port> serial(
-      new boost::asio::serial_port(*io_service));
-
-  // open serial port
-  try {
-    serial->open(port);
-  } catch (std::runtime_error& e) {
-    throw std::runtime_error("U-Blox: initializeSerial: Could not open serial port :"
-                             + port + " " + e.what());
-  }
-
-  std::cout << SUCCESS << "U-Blox: Opened serial port  " << port << RESET_FORMATTING << std::endl;
-    
-  if(BOOST_VERSION < 106600)
-  {
-    // NOTE(Kartik): Set serial port to "raw" mode. This is done in Boost but
-    // until v1.66.0 there was a bug which didn't enable the relevant code,
-    // fixed by commit: https://github.com/boostorg/asio/commit/619cea4356
-    int fd = serial->native_handle();
-    termios tio;
-    tcgetattr(fd, &tio);
-    cfmakeraw(&tio);
-    tcsetattr(fd, TCSANOW, &tio);
-  }
+  baudrate_ = baudrate;
 
   // Set the I/O worker
   if (worker_) return;
-  setWorker(boost::shared_ptr<Worker>(
-      new AsyncWorker<boost::asio::serial_port>(serial, io_service)));
-
-  configured_ = false;
-
-  // Set the baudrate
-  boost::asio::serial_port_base::baud_rate current_baudrate;
-  serial->get_option(current_baudrate);
-  // Incrementally increase the baudrate to the desired value
-  for (int i = 0; i < sizeof(kBaudrates)/sizeof(kBaudrates[0]); i++) {
-    if (current_baudrate.value() == baudrate)
-      break;
-    // Don't step down, unless the desired baudrate is lower
-    if(current_baudrate.value() > kBaudrates[i] && baudrate > kBaudrates[i])
-      continue;
-    serial->set_option(
-        boost::asio::serial_port_base::baud_rate(kBaudrates[i]));
-    boost::this_thread::sleep(
-        boost::posix_time::milliseconds(kSetBaudrateSleepMs));
-    serial->get_option(current_baudrate);
-    std::cout << "U-Blox: Set ASIO baudrate to " << current_baudrate.value() << std::endl;
-  }
-
-  worker_->baudrate_ = current_baudrate.value();
+  setWorker(std::shared_ptr<Worker>(new Worker(baudrate, port)));
 
   if (!test_serial()) {
     throw std::runtime_error("U-Blox: Could not read/ write from serial port :" + port);
@@ -173,122 +125,15 @@ void ublox_ZEDF9P::initializeSerial(std::string port, unsigned int baudrate) {
 }
 
 void ublox_ZEDF9P::resetSerial(std::string port, unsigned int baudrate) {
-  boost::shared_ptr<boost::asio::io_service> io_service(
-      new boost::asio::io_service);
-  boost::shared_ptr<boost::asio::serial_port> serial(
-      new boost::asio::serial_port(*io_service));
-
-  // open serial port
-  try {
-    serial->open(port);
-  } catch (std::runtime_error& e) {
-    throw std::runtime_error("U-Blox: reset:serial: Could not open serial port :"
-                             + port + " " + e.what());
-  }
-
-  std::cout << SUCCESS << "U-Blox: Successfully reset and reopened serial port " << port << RESET_FORMATTING << std::endl;
-
   // Set the I/O worker
   if (worker_) return;
-  setWorker(boost::shared_ptr<Worker>(
-      new AsyncWorker<boost::asio::serial_port>(serial, io_service)));
-  configured_ = false;
+  setWorker(std::shared_ptr<Worker>(new Worker(baudrate, port)));
 
-  // Set the baudrate
-  boost::asio::serial_port_base::baud_rate current_baudrate;
-  serial->get_option(current_baudrate);
-  // Incrementally increase the baudrate to the desired value
-  for (int i = 0; i < sizeof(kBaudrates)/sizeof(kBaudrates[0]); i++) {
-    if (current_baudrate.value() == baudrate)
-      break;
-    // Don't step down, unless the desired baudrate is lower
-    if(current_baudrate.value() > kBaudrates[i] && baudrate > kBaudrates[i])
-      continue;
-    serial->set_option(
-        boost::asio::serial_port_base::baud_rate(kBaudrates[i]));
-    boost::this_thread::sleep(
-        boost::posix_time::milliseconds(kSetBaudrateSleepMs));
-    serial->get_option(current_baudrate);
-    std::cout << "U-Blox: Reset serial port: Set ASIO baudrate to " << current_baudrate.value() << std::endl;
-  }
-
-  if (test_serial()) {
+  if (!test_serial()) {
     throw std::runtime_error("U-Blox: Reset serial port: Could not read/ write from serial port :" + port);
   }
 
   configured_ = true;
-}
-
-void ublox_ZEDF9P::initializeTcp(std::string host, std::string port) {
-  host_ = host;
-  port_ = port;
-  boost::shared_ptr<boost::asio::io_service> io_service(
-      new boost::asio::io_service);
-  boost::asio::ip::tcp::resolver::iterator endpoint;
-
-  try {
-    boost::asio::ip::tcp::resolver resolver(*io_service);
-    endpoint =
-        resolver.resolve(boost::asio::ip::tcp::resolver::query(host, port));
-  } catch (std::runtime_error& e) {
-    throw std::runtime_error("U-Blox: Could not resolve" + host + " " +
-                             port + " " + e.what());
-  }
-
-  boost::shared_ptr<boost::asio::ip::tcp::socket> socket(
-    new boost::asio::ip::tcp::socket(*io_service));
-
-  try {
-    socket->connect(*endpoint);
-  } catch (std::runtime_error& e) {
-    throw std::runtime_error("U-Blox: Could not connect to " +
-                             endpoint->host_name() + ":" +
-                             endpoint->service_name() + ": " + e.what());
-  }
-
-  std::cout << ("U-Blox: Connected to %s:%s.", endpoint->host_name().c_str(),
-           endpoint->service_name().c_str()) << std::endl;
-
-  if (worker_) return;
-  setWorker(boost::shared_ptr<Worker>(
-      new AsyncWorker<boost::asio::ip::tcp::socket>(socket,
-                                                    io_service)));
-}
-
-void ublox_ZEDF9P::initializeUdp(std::string host, std::string port) {
-  host_ = host;
-  port_ = port;
-  boost::shared_ptr<boost::asio::io_service> io_service(
-      new boost::asio::io_service);
-  boost::asio::ip::udp::resolver::iterator endpoint;
-
-  try {
-    boost::asio::ip::udp::resolver resolver(*io_service);
-    endpoint =
-        resolver.resolve(boost::asio::ip::udp::resolver::query(host, port));
-  } catch (std::runtime_error& e) {
-    throw std::runtime_error("U-Blox: Could not resolve" + host + " " +
-                             port + " " + e.what());
-  }
-
-  boost::shared_ptr<boost::asio::ip::udp::socket> socket(
-    new boost::asio::ip::udp::socket(*io_service));
-
-  try {
-    socket->connect(*endpoint);
-  } catch (std::runtime_error& e) {
-    throw std::runtime_error("U-Blox: Could not connect to " +
-                             endpoint->host_name() + ":" +
-                             endpoint->service_name() + ": " + e.what());
-  }
-
-  std::cout << ("U-Blox: Connected to %s:%s.", endpoint->host_name().c_str(),
-           endpoint->service_name().c_str()) << std::endl;
-
-  if (worker_) return;
-  setWorker(boost::shared_ptr<Worker>(
-      new AsyncWorker<boost::asio::ip::udp::socket>(socket,
-                                                    io_service)));
 }
 
 bool ublox_ZEDF9P::setRate(uint8_t class_id, uint8_t message_id, uint8_t rate) {
@@ -314,15 +159,11 @@ void ublox_ZEDF9P::close() {
 }
 
 void ublox_ZEDF9P::reset(const boost::posix_time::time_duration& wait) {
-  unsigned int baudrate = worker_->baudrate_;
   worker_.reset();
   configured_ = false;
   // sleep because of undefined behavior after I/O reset
   boost::this_thread::sleep(wait);
-  if (host_ == "")
-    resetSerial(port_, baudrate);
-  else
-    initializeTcp(host_, port_);
+  resetSerial(port_, baudrate_);
 }
 
 bool ublox_ZEDF9P::configReset(uint16_t nav_bbr_mask, uint16_t reset_mode) {
@@ -352,8 +193,10 @@ bool ublox_ZEDF9P::poll(uint8_t class_id, uint8_t message_id,
   return true;
 }
 
-bool ublox_ZEDF9P::waitForAcknowledge(const boost::posix_time::time_duration& timeout,
+bool ublox_ZEDF9P::waitForAcknowledge(unsigned int timeout_seconds,
                              uint8_t class_id, uint8_t msg_id) {
+  unsigned int timeout_milliseconds = timeout_seconds * 1000;
+                              
   if (debug_level_ >= 2) {
     std::cout << "Waiting for ACK " 
               << std::hex << static_cast<int>(class_id)
@@ -361,16 +204,18 @@ bool ublox_ZEDF9P::waitForAcknowledge(const boost::posix_time::time_duration& ti
               << std::hex << static_cast<int>(msg_id)
               << std::endl;
   }
-  boost::posix_time::ptime wait_until(
-      boost::posix_time::second_clock::local_time() + timeout);
 
-  Ack ack = ack_.load(boost::memory_order_seq_cst);
-  while (boost::posix_time::second_clock::local_time() < wait_until
+  std::chrono::time_point<std::chrono::steady_clock> wait_until_time = std::chrono::steady_clock::now();
+  std::chrono::milliseconds duration(timeout_milliseconds);
+  wait_until_time += duration;
+
+  Ack ack = ack_.load(std::memory_order_seq_cst);
+  while (std::chrono::steady_clock::now() < wait_until_time
          && (ack.class_id != class_id
              || ack.msg_id != msg_id
              || ack.type == WAIT)) {
-    worker_->wait(timeout);
-    ack = ack_.load(boost::memory_order_seq_cst);
+    worker_->wait(timeout_milliseconds);
+    ack = ack_.load(std::memory_order_seq_cst);
   }
   bool result = ack.type == ACK
                 && ack.class_id == class_id
@@ -378,10 +223,6 @@ bool ublox_ZEDF9P::waitForAcknowledge(const boost::posix_time::time_duration& ti
   return result;
 }
 
-void ublox_ZEDF9P::setRawDataCallback(const Worker::Callback& callback) {
-  if (! worker_) return;
-  worker_->setRawDataCallback(callback);
-}
 
 ublox_msgs::MONVER ublox_ZEDF9P::poll_MONVER() {
   ublox_msgs::MONVER MONVER_msg;

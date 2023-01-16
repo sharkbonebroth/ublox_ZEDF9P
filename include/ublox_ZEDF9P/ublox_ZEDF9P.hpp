@@ -34,6 +34,8 @@
 #include <vector>
 #include <locale>
 #include <stdexcept>
+#include <memory>
+#include <atomic>
 
 // Boost
 #include <boost/asio/ip/tcp.hpp>
@@ -43,7 +45,7 @@
 #include <boost/atomic.hpp>
 
 // u-blox ZEDF9P
-#include "ublox_ZEDF9P/async_worker.hpp"
+#include "ublox_ZEDF9P/libserial_async_worker.hpp"
 #include "ublox_ZEDF9P/callback.hpp"
 
 // u-blox msgs
@@ -70,7 +72,7 @@ constexpr static unsigned int kBaudrates[] = { 4800,
 class ublox_ZEDF9P {
  public:
   //! Default timeout for ACK messages in seconds
-  constexpr static double kDefaultAckTimeout = 1.0;
+  constexpr static unsigned int kDefaultAckTimeout = 1;
   //! Size of write buffer for output messages
   constexpr static int kWriterSize = 2056;
 
@@ -152,12 +154,6 @@ class ublox_ZEDF9P {
   void subscribe(typename CallbackHandler_<T>::Callback callback, uint8_t rate = 1);
 
   /**
-   * @brief Subscribe to the given Ublox message.
-   * @param the callback handler for the message
-   */
-  void subscribe_nmea(boost::function<void(const std::string&)> callback) { callbacks_.set_nmea_callback(callback); }
-
-  /**
    * @brief Subscribe to the message with the given ID. This is used for
    * messages which have the same format but different message IDs,
    * e.g. INF messages.
@@ -215,12 +211,12 @@ class ublox_ZEDF9P {
 
   /**
    * @brief Wait for an acknowledge message until the timeout
-   * @param timeout maximum time to wait in seconds
+   * @param timeout_seconds maximum time to wait in seconds
    * @param class_id the expected class ID of the ACK
    * @param msg_id the expected message ID of the ACK
    * @return true if expected ACK received, false otherwise
    */
-  bool waitForAcknowledge(const boost::posix_time::time_duration& timeout,
+  bool waitForAcknowledge(unsigned int timeout_seconds,
                           uint8_t class_id, uint8_t msg_id);
 
   /**
@@ -265,7 +261,7 @@ class ublox_ZEDF9P {
    * @brief Set the I/O worker
    * @param an I/O handler
    */
-  void setWorker(const boost::shared_ptr<Worker>& worker);
+  void setWorker(const std::shared_ptr<Worker>& worker);
 
   /**
    * @brief Subscribe to ACK/NACK messages and UPD-SOS-ACK messages.
@@ -285,9 +281,9 @@ class ublox_ZEDF9P {
   void processNack(const ublox_msgs::Ack &m);
 
   //! Processes I/O stream data
-  boost::shared_ptr<Worker> worker_;
+  std::shared_ptr<Worker> worker_;
   //! Whether or not the I/O port has been configured
-  bool configured_;
+  bool configured_ = false;
 
   //! Defaults to 0
   int debug_level_ = 0;
@@ -295,12 +291,13 @@ class ublox_ZEDF9P {
   //! The default timeout for ACK messages
   static const boost::posix_time::time_duration default_timeout_;
   //! Stores last received ACK accessed by multiple threads
-  mutable boost::atomic<Ack> ack_;
+  mutable std::atomic<Ack> ack_;
 
   //! Callback handlers for u-blox messages
   CallbackHandlers callbacks_;
 
   std::string host_, port_;
+  unsigned int baudrate_;
 };
 
 template <typename T>
@@ -337,7 +334,7 @@ bool ublox_ZEDF9P::send_config_msg(const ConfigT& message, bool wait) {
   // Reset ack
   Ack ack;
   ack.type = WAIT;
-  ack_.store(ack, boost::memory_order_seq_cst);
+  ack_.store(ack, std::memory_order_seq_cst);
 
   // Encode the message
   std::vector<unsigned char> out(kWriterSize);
@@ -353,7 +350,7 @@ bool ublox_ZEDF9P::send_config_msg(const ConfigT& message, bool wait) {
   if (!wait) return true;
 
   // Wait for an acknowledgment and return whether or not it was received
-  return waitForAcknowledge(default_timeout_,
+  return waitForAcknowledge(kDefaultAckTimeout,
                             message.CLASS_ID,
                             message.MESSAGE_ID);
 }

@@ -48,12 +48,6 @@ public:
   virtual void setCallback(const Callback& callback) = 0;
 
   /**
-   * @brief Set the callback function which handles raw data.
-   * @param callback the write callback which handles raw data
-   */
-  virtual void setRawDataCallback(const Callback& callback) = 0;
-
-  /**
    * @brief Send the data in the buffer.
    * @param data the bytes to send
    * @param size the size of the buffer
@@ -64,7 +58,7 @@ public:
    * @brief Wait for an incoming message.
    * @param timeout the maximum time to wait.
    */
-  virtual void wait(const boost::posix_time::time_duration& timeout) = 0;
+  virtual void wait(int timeout_milliseconds) = 0;
 
   /**
    * @brief Whether or not the I/O stream is open.
