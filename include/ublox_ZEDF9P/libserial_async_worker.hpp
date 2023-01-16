@@ -160,7 +160,7 @@ bool Worker::send(const unsigned char* data, const unsigned int size) {
 }
 
 void Worker::doRead() {
-  while (!stopping_) {
+  while (!stopping_ && stream_.IsOpen()) {
     if (stream_.IsDataAvailable()) {
       const std::lock_guard<std::mutex> lock(read_mutex_);
 
@@ -168,17 +168,15 @@ void Worker::doRead() {
       int max_bytes_transferrable = in_.size() - in_buffer_size_;
       int bytes_transfered;
 
-      stream_.read(reinterpret_cast<char *>(in_.data()) + in_buffer_size_, in_.size() - in_buffer_size_);
-      stream_.FlushInputBuffer();
-
       if (num_bytes_available < max_bytes_transferrable) {
         bytes_transfered = num_bytes_available;
       } else {
         bytes_transfered = max_bytes_transferrable;
       }
+
+      stream_.read(reinterpret_cast<char *>(in_.data()) + in_buffer_size_, bytes_transfered);
       
       if (bytes_transfered > 0) {
-        std::cout << "weare" << std::endl;
         in_buffer_size_ += bytes_transfered;
 
         if (debug_level_ >= 4) {
@@ -194,7 +192,10 @@ void Worker::doRead() {
           read_callback_(in_.data(), in_buffer_size_);
 
         read_condition_.notify_all();
+        stream_.FlushInputBuffer();
       }
+    } else {
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
   }
 }
