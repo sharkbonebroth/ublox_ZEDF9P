@@ -161,39 +161,40 @@ bool Worker::send(const unsigned char* data, const unsigned int size) {
 
 void Worker::doRead() {
   while (!stopping_) {
-    const std::lock_guard<std::mutex> lock(read_mutex_);
+    if (stream_.IsDataAvailable()) {
+      const std::lock_guard<std::mutex> lock(read_mutex_);
 
-    int num_bytes_available = stream_.GetNumberOfBytesAvailable();
-    int max_bytes_transferrable = in_.size() - in_buffer_size_;
-    int bytes_transfered;
+      int num_bytes_available = stream_.GetNumberOfBytesAvailable();
+      int max_bytes_transferrable = in_.size() - in_buffer_size_;
+      int bytes_transfered;
 
-    stream_.read(reinterpret_cast<char *>(in_.data()) + in_buffer_size_, in_.size() - in_buffer_size_);
-
-    if (num_bytes_available < max_bytes_transferrable) {
-      bytes_transfered = num_bytes_available;
-    } else {
-      bytes_transfered = max_bytes_transferrable;
-    }
-    
-    if (bytes_transfered > 0) {
-      std::cout << std::dec << "num bytes avail:: " << stream_.GetNumberOfBytesAvailable() << " bytes avail?: " << stream_.IsDataAvailable() << std::endl;
+      stream_.read(reinterpret_cast<char *>(in_.data()) + in_buffer_size_, in_.size() - in_buffer_size_);
       stream_.FlushInputBuffer();
-      std::cout << std::dec << "num bytes avail:: " << stream_.GetNumberOfBytesAvailable() << " bytes avail?: " << stream_.IsDataAvailable() << std::endl;
-      in_buffer_size_ += bytes_transfered;
 
-      if (debug_level_ >= 4) {
-        std::ostringstream oss;
-        for (std::vector<unsigned char>::iterator it =
-                  in_.begin() + in_buffer_size_ - bytes_transfered;
-              it != in_.begin() + in_buffer_size_; ++it)
-          oss << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(*it) << " ";
-        std::cout << "U-Blox driver: received " << std::dec << bytes_transfered << " bytes\n" << oss.str().c_str() << std::endl;
+      if (num_bytes_available < max_bytes_transferrable) {
+        bytes_transfered = num_bytes_available;
+      } else {
+        bytes_transfered = max_bytes_transferrable;
       }
+      
+      if (bytes_transfered > 0) {
+        std::cout << "weare" << std::endl;
+        in_buffer_size_ += bytes_transfered;
 
-      if (read_callback_)
-        read_callback_(in_.data(), in_buffer_size_);
+        if (debug_level_ >= 4) {
+          std::ostringstream oss;
+          for (std::vector<unsigned char>::iterator it =
+                    in_.begin() + in_buffer_size_ - bytes_transfered;
+                it != in_.begin() + in_buffer_size_; ++it)
+            oss << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(*it) << " ";
+          std::cout << "U-Blox driver: received " << std::dec << bytes_transfered << " bytes\n" << oss.str().c_str() << std::endl;
+        }
 
-      read_condition_.notify_all();
+        if (read_callback_)
+          read_callback_(in_.data(), in_buffer_size_);
+
+        read_condition_.notify_all();
+      }
     }
   }
 }

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.15)
 project(ublox_ZEDF9P VERSION 1.0)
 
 # this is temporary, just to link to libserial
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libserial/src ${CMAKE_BINARY_DIR}/3rd_party)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/libserial ${CMAKE_BINARY_DIR}/3rd_party)
 
 find_package(
   Boost REQUIRED COMPONENTS system regex thread
