@@ -104,7 +104,7 @@ Worker::Worker(unsigned int baudrate, std::string port, std::size_t buffer_size)
   stream_.SetCharacterSize(LibSerial::CharacterSize::CHAR_SIZE_8);
   stream_.SetParity(LibSerial::Parity::PARITY_NONE);
   stream_.SetStopBits(LibSerial::StopBits::STOP_BITS_1);
-  stream_.SetFlowControl(LibSerial::FlowControl::FLOW_CONTROL_NONE) ;
+  stream_.SetFlowControl(LibSerial::FlowControl::FLOW_CONTROL_NONE);
 
   in_.resize(buffer_size);
   in_buffer_size_ = 0;
@@ -145,7 +145,7 @@ bool Worker::send(const unsigned char* data, const unsigned int size) {
     std::ostringstream oss;
     for (std::vector<unsigned char>::iterator it = out_.begin();
          it != out_.end(); ++it)
-      oss << std::setfill('0') << std::setw(2) << static_cast<unsigned int>(*it) << " ";
+      oss << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(*it) << " ";
     std::cout << "U-Blox driver: sent " 
               << std::dec << static_cast<int>(out_.size()) 
               << " bytes: \n" 
@@ -153,6 +153,7 @@ bool Worker::send(const unsigned char* data, const unsigned int size) {
               << std::endl;
   }
 
+  stream_.DrainWriteBuffer();
   out_.clear();
 
   return true;
@@ -173,21 +174,27 @@ void Worker::doRead() {
     } else {
       bytes_transfered = max_bytes_transferrable;
     }
-    in_buffer_size_ += bytes_transfered;
+    
+    if (bytes_transfered > 0) {
+      std::cout << std::dec << "num bytes avail:: " << stream_.GetNumberOfBytesAvailable() << " bytes avail?: " << stream_.IsDataAvailable() << std::endl;
+      stream_.FlushInputBuffer();
+      std::cout << std::dec << "num bytes avail:: " << stream_.GetNumberOfBytesAvailable() << " bytes avail?: " << stream_.IsDataAvailable() << std::endl;
+      in_buffer_size_ += bytes_transfered;
 
-    if (debug_level_ >= 4) {
-      std::ostringstream oss;
-      for (std::vector<unsigned char>::iterator it =
-                in_.begin() + in_buffer_size_ - bytes_transfered;
-            it != in_.begin() + in_buffer_size_; ++it)
-        oss << std::setfill('0') << std::setw(2) << static_cast<unsigned int>(*it) << " ";
-      std::cout << "U-Blox driver: received " << bytes_transfered << " bytes\n" << oss.str().c_str() << std::endl;
+      if (debug_level_ >= 4) {
+        std::ostringstream oss;
+        for (std::vector<unsigned char>::iterator it =
+                  in_.begin() + in_buffer_size_ - bytes_transfered;
+              it != in_.begin() + in_buffer_size_; ++it)
+          oss << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(*it) << " ";
+        std::cout << "U-Blox driver: received " << std::dec << bytes_transfered << " bytes\n" << oss.str().c_str() << std::endl;
+      }
+
+      if (read_callback_)
+        read_callback_(in_.data(), in_buffer_size_);
+
+      read_condition_.notify_all();
     }
-
-    if (read_callback_)
-      read_callback_(in_.data(), in_buffer_size_);
-
-    read_condition_.notify_all();
   }
 }
 
