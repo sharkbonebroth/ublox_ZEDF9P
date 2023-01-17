@@ -34,15 +34,7 @@
 #include <vector>
 #include <locale>
 #include <stdexcept>
-#include <memory>
 #include <atomic>
-
-// Boost
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ip/udp.hpp>
-#include <boost/asio/serial_port.hpp>
-#include <boost/asio/io_service.hpp>
-#include <boost/atomic.hpp>
 
 // u-blox ZEDF9P
 #include "ublox_ZEDF9P/libserial_async_worker.hpp"
@@ -71,8 +63,8 @@ constexpr static unsigned int kBaudrates[] = { 4800,
  */
 class ublox_ZEDF9P {
  public:
-  //! Default timeout for ACK messages in seconds
-  constexpr static unsigned int kDefaultAckTimeout = 1;
+  //! Default timeout for ACK messages in milliseconds
+  constexpr static unsigned int kDefaultAckTimeout = 1000;
   //! Size of write buffer for output messages
   constexpr static int kWriterSize = 2056;
 
@@ -132,9 +124,9 @@ class ublox_ZEDF9P {
 
   /**
    * @brief Reset I/O communications.
-   * @param wait Time to wait before restarting communications
+   * @param timeout_milliseconds Time to wait in milliseconds before restarting communications
    */
-  void reset(const boost::posix_time::time_duration& wait);
+  void reset(const unsigned int timeout_milliseconds);
 
   /**
    * @brief Send a reset message to the u-blox device.
@@ -167,11 +159,11 @@ class ublox_ZEDF9P {
   /**
    * Read a u-blox message of the given type.
    * @param message the received u-blox message
-   * @param timeout the amount of time to wait for the desired message
+   * @param timeout_milliseconds the amount of time to wait for the desired message
    */
   template <typename T>
   bool read(T& message,
-            const boost::posix_time::time_duration& timeout = default_timeout_);
+            const unsigned int timeout_milliseconds = default_timeout_milliseconds);
 
   bool isInitialized() const { return worker_ != 0; }
   bool isConfigured() const { return isInitialized() && configured_; }
@@ -182,12 +174,12 @@ class ublox_ZEDF9P {
    * @param message the received u-blox message output
    * @param payload the poll message payload sent to the device
    * defaults to empty
-   * @param timeout the amount of time to wait for the desired message
+   * @param timeout_milliseconds the amount of time to wait for the desired message in milliseconds
    */
   template <typename ConfigT>
   bool poll(ConfigT& message,
             const std::vector<uint8_t>& payload = std::vector<uint8_t>(),
-            const boost::posix_time::time_duration& timeout = default_timeout_);
+            const unsigned int timeout_milliseconds = default_timeout_milliseconds);
   /**
    * Poll a u-blox message.
    * @param class_id the u-blox message class id
@@ -211,12 +203,12 @@ class ublox_ZEDF9P {
 
   /**
    * @brief Wait for an acknowledge message until the timeout
-   * @param timeout_seconds maximum time to wait in seconds
+   * @param timeout_milliseconds maximum time to wait in milliseconds
    * @param class_id the expected class ID of the ACK
    * @param msg_id the expected message ID of the ACK
    * @return true if expected ACK received, false otherwise
    */
-  bool waitForAcknowledge(unsigned int timeout_seconds,
+  bool waitForAcknowledge(unsigned int timeout_milliseconds,
                           uint8_t class_id, uint8_t msg_id);
 
   /**
@@ -289,7 +281,7 @@ class ublox_ZEDF9P {
   int debug_level_ = 0;
 
   //! The default timeout for ACK messages
-  static const boost::posix_time::time_duration default_timeout_;
+  const static unsigned int default_timeout_milliseconds = 1000;
   //! Stores last received ACK accessed by multiple threads
   mutable std::atomic<Ack> ack_;
 
@@ -316,15 +308,15 @@ void ublox_ZEDF9P::subscribeId(typename CallbackHandler_<T>::Callback callback,
 template <typename ConfigT>
 bool ublox_ZEDF9P::poll(ConfigT& message,
                const std::vector<uint8_t>& payload,
-               const boost::posix_time::time_duration& timeout) {
+               const unsigned int timeout_milliseconds) {
   if (!poll(ConfigT::CLASS_ID, ConfigT::MESSAGE_ID, payload)) return false;
-  return read(message, timeout);
+  return read(message, timeout_milliseconds);
 }
 
 template <typename T>
-bool ublox_ZEDF9P::read(T& message, const boost::posix_time::time_duration& timeout) {
+bool ublox_ZEDF9P::read(T& message, const unsigned int timeout_milliseconds) {
   if (!worker_) return false;
-  return callbacks_.read(message, timeout);
+  return callbacks_.read(message, timeout_milliseconds);
 }
 
 template <typename ConfigT>

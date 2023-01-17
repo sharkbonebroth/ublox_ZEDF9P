@@ -9,8 +9,7 @@
 #include <chrono>
 #include <iostream>
 #include <iomanip>
-
-#include <boost/function.hpp>
+#include <functional>
 
 #include "ublox_ZEDF9P/logging.hpp"
 
@@ -22,7 +21,7 @@ namespace ublox_ZEDF9P {
 class Worker {
  public:
   typedef std::mutex Mutex;
-  typedef boost::function<void(unsigned char*, std::size_t&)> Callback;
+  typedef std::function<void(unsigned char*, std::size_t&)> Callback;
 
   /**
    * @brief Construct an Asynchronous I/O worker.
@@ -50,7 +49,7 @@ class Worker {
    * @param timeout_milliseconds the maximum time in milliseconds to wait
    */
 
-  inline void wait(unsigned int timeout_milliseconds);
+  inline void wait(const unsigned int timeout_milliseconds);
 
   inline bool isOpen() { return stream_.IsOpen(); }
 
@@ -208,10 +207,9 @@ void Worker::doClose() {
   stream_.Close();
 }
 
-void Worker::wait(unsigned int timeout_milliseconds) {
+void Worker::wait(const unsigned int timeout_milliseconds) {
   std::chrono::milliseconds duration(timeout_milliseconds);
-  std::mutex mtx;
-  std::unique_lock<std::mutex> lck(mtx);
+  std::unique_lock<std::mutex> lck(read_mutex_);
   read_condition_.wait_for(lck, duration);
 }
 

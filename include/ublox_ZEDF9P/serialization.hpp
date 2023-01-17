@@ -29,7 +29,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <boost/call_traits.hpp>
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -73,7 +72,7 @@ struct Serializer {
    * @param message the output message
    */
   static void read(const uint8_t *data, uint32_t count, 
-                   typename boost::call_traits<T>::reference message);
+                   T& message);
   /**
    * @brief Get the length of the message payload in bytes.
    * 
@@ -81,8 +80,7 @@ struct Serializer {
    * @param message the message to get the length of
    * @return the length of the message in bytes.
    */
-  static uint32_t serializedLength(
-      typename boost::call_traits<T>::param_type message);
+  static uint32_t serializedLength(T message);
   
   /**
    * @brief Encode the message payload as a byte array.
@@ -91,28 +89,25 @@ struct Serializer {
    * @param message the output message
    */
   static void write(uint8_t *data, uint32_t size, 
-                    typename boost::call_traits<T>::param_type message);
+                    T message);
 };
 
 // TODO: this can defo be implemented such that the read, write and serialized length functs are called straight from the reader/ worker class
 // I just do not do that yet to preserve the same program structure as the original zedf9p driver. For now.
 
 template <typename T>
-void Serializer<T>::read(const uint8_t *data, uint32_t count, 
-                         typename boost::call_traits<T>::reference message) {
+void Serializer<T>::read(const uint8_t *data, uint32_t count, T& message) {
   uint8_t * data_readable = const_cast<uint8_t *>(data);
   T::initialize_from_stream(data_readable, message);
 }
 
 template <typename T>
-uint32_t Serializer<T>::serializedLength(
-      typename boost::call_traits<T>::param_type message) {
+uint32_t Serializer<T>::serializedLength(T message) {
     return T::serialized_length(message);
 }
 
 template <typename T>
-void Serializer<T>::write(uint8_t *data, uint32_t size, 
-                          typename boost::call_traits<T>::param_type message) {
+void Serializer<T>::write(uint8_t *data, uint32_t size, T message) {
   T::write_to_data_stream(data, message);
 }
 
@@ -274,8 +269,7 @@ class Reader {
    * @param search whether or not to skip to the next message in the buffer
    */
   template <typename T>
-  bool read(typename boost::call_traits<T>::reference message, 
-            bool search = false) {
+  bool read(T& message, bool search = false) {
     if (search) this->search();
     if (!found()) return false; 
 

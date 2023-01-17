@@ -28,10 +28,11 @@
 
 #pragma once
 
+#include <mutex>
+#include <memory>
+#include <functional>
+
 #include "ublox_ZEDF9P/serialization.hpp"
-#include <boost/format.hpp>
-#include <boost/function.hpp>
-#include <boost/thread.hpp>
 
 namespace ublox_ZEDF9P {
 
@@ -48,9 +49,13 @@ class CallbackHandler {
   /**
    * @brief Wait for on the condition.
    */
-  bool wait(const boost::posix_time::time_duration& timeout) {
-    boost::mutex::scoped_lock lock(mutex_);
-    return condition_.timed_wait(lock, timeout);
+  bool wait(const unsigned int timeout_milliseconds) {
+    std::chrono::milliseconds duration(timeout_milliseconds);
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (condition_.wait_for(lock, duration, []{return true;})) {
+      return true;
+    }
+    return false;
   }
 
   inline void set_debug_level(const int level) {
@@ -58,8 +63,8 @@ class CallbackHandler {
   }
 
  protected:
-  boost::mutex mutex_; //!< Lock for the handler
-  boost::condition_variable condition_; //!< Condition for the handler lock
+  std::mutex mutex_; //!< Lock for the handler
+  std::condition_variable condition_; //!< Condition for the handler lock
 
   int debug_level_ = 0;
 };
@@ -71,7 +76,7 @@ class CallbackHandler {
 template <typename T>
 class CallbackHandler_ : public CallbackHandler {
  public:
-  typedef boost::function<void(const T&)> Callback; //!< A callback function
+  typedef std::function<void(const T&)> Callback; //!< A callback funtion
 
   /** 
    * @brief Initialize the Callback Handler with a callback function
@@ -89,7 +94,7 @@ class CallbackHandler_ : public CallbackHandler {
    * @param reader a reader to decode the message buffer
    */
   void handle(ublox::Reader& reader) {
-    boost::mutex::scoped_lock lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     try {
       if (!reader.read<T>(message_)) {
         if (debug_level_ >= 2) {
@@ -139,12 +144,12 @@ class CallbackHandlers {
    */
   template <typename T>
   void insert(typename CallbackHandler_<T>::Callback callback) {
-    boost::mutex::scoped_lock lock(callback_mutex_);
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     CallbackHandler_<T>* handler = new CallbackHandler_<T>(callback);
     handler->set_debug_level(debug_level_);
     callbacks_.insert(
       std::make_pair(std::make_pair(T::CLASS_ID, T::MESSAGE_ID),
-                     boost::shared_ptr<CallbackHandler>(handler)));
+                     std::shared_ptr<CallbackHandler>(handler)));
   }
 
   /**
@@ -159,21 +164,12 @@ class CallbackHandlers {
   void insert(
       typename CallbackHandler_<T>::Callback callback, 
       unsigned int message_id) {
-    boost::mutex::scoped_lock lock(callback_mutex_);
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     CallbackHandler_<T>* handler = new CallbackHandler_<T>(callback);
     handler->set_debug_level(debug_level_);
     callbacks_.insert(
       std::make_pair(std::make_pair(T::CLASS_ID, message_id),
-                     boost::shared_ptr<CallbackHandler>(handler)));
-  }
-
-  /**
-   * @brief Add a callback handler for nmea messages
-   * @param callback the callback handler for the message
-   */
-  void set_nmea_callback(boost::function<void(const std::string&)> callback) {
-    boost::mutex::scoped_lock lock(callback_mutex_);
-    callback_nmea_ = callback;
+                     std::shared_ptr<CallbackHandler>(handler)));
   }
 
   /**
@@ -182,7 +178,7 @@ class CallbackHandlers {
    */
   void handle(ublox::Reader& reader) {
     // Find the callback handlers for the message & decode it
-    boost::mutex::scoped_lock lock(callback_mutex_);
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     Callbacks::key_type key =
         std::make_pair(reader.classId(), reader.messageId());
     for (Callbacks::iterator callback = callbacks_.lower_bound(key);
@@ -192,33 +188,12 @@ class CallbackHandlers {
   }
 
   /**
-   * @brief Calls the callback handler for the nmea messages in the reader.
-   * @param reader a reader containing an nmea message
-   */
-  void handle_nmea(ublox::Reader& reader) {
-    boost::mutex::scoped_lock lock(callback_mutex_);
-    if(callback_nmea_.empty())
-        return;
-
-    const std::string& buffer = reader.getUnusedData();
-    size_t nmea_start = buffer.find('$', 0);
-    size_t nmea_end = buffer.find('\n', nmea_start);
-    while(nmea_start != std::string::npos && nmea_end != std::string::npos) {
-        std::string sentence = buffer.substr(nmea_start, nmea_end - nmea_start + 1);
-        callback_nmea_(sentence);
-
-        nmea_start = buffer.find('$', nmea_end+1);
-        nmea_end = buffer.find('\n', nmea_start);
-    }
-  }
-
-  /**
    * @brief Read a u-blox message of the given type.
    * @param message the received u-blox message
-   * @param timeout the amount of time to wait for the desired message
+   * @param timeout_milliseconds the amount of time to wait for the desired message in milliseconds
    */
   template <typename T>
-  bool read(T& message, const boost::posix_time::time_duration& timeout) {
+  bool read(T& message, const unsigned int timeout_milliseconds) {
     bool result = false;
     // Create a callback handler for this message
     callback_mutex_.lock();
@@ -226,11 +201,11 @@ class CallbackHandlers {
     handler->set_debug_level(debug_level_);
     Callbacks::iterator callback = callbacks_.insert(
       (std::make_pair(std::make_pair(T::CLASS_ID, T::MESSAGE_ID),
-                      boost::shared_ptr<CallbackHandler>(handler))));
+                      std::shared_ptr<CallbackHandler>(handler))));
     callback_mutex_.unlock();
 
     // Wait for the message
-    if (handler->wait(timeout)) {
+    if (handler->wait(timeout_milliseconds)) {
       message = handler->get();
       result = true;
     }
@@ -257,7 +232,7 @@ class CallbackHandlers {
         std::ostringstream oss;
         for (ublox::Reader::iterator it = reader.pos();
              it != reader.pos() + reader.length() + 8; ++it)
-          oss << boost::format("%02x") % static_cast<unsigned int>(*it) << " ";
+          oss << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(*it) << " ";
         std::cout << "U-blox driver: reading " 
                   << std::dec <<  reader.length() + 8 
                   << " bytes\n" << oss.str().c_str() 
@@ -266,7 +241,6 @@ class CallbackHandlers {
 
       handle(reader);
     }
-    handle_nmea(reader);
 
     // delete read bytes from ASIO input buffer
     std::copy(reader.pos(), reader.end(), data);
@@ -279,14 +253,11 @@ class CallbackHandlers {
 
  private:
   typedef std::multimap<std::pair<uint8_t, uint8_t>,
-                        boost::shared_ptr<CallbackHandler> > Callbacks;
+                        std::shared_ptr<CallbackHandler> > Callbacks;
 
   // Call back handlers for u-blox messages
   Callbacks callbacks_;
-  boost::mutex callback_mutex_;
-  
-  //! Callback handler for nmea messages
-  boost::function<void(const std::string&)> callback_nmea_;
+  std::mutex callback_mutex_;
 
   int debug_level_ = 0;
 };

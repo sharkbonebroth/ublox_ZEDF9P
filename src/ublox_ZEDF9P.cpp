@@ -30,18 +30,12 @@
 #include "ublox_ZEDF9P/ublox_ZEDF9P.hpp"
 #include "ublox_ZEDF9P/logging.hpp"
 
-#include <boost/version.hpp>
-
 namespace ublox_ZEDF9P {
 
 using namespace ublox_msgs;
 
 //! Sleep time [ms] after setting the baudrate
 constexpr static int kSetBaudrateSleepMs = 500;
-
-const boost::posix_time::time_duration ublox_ZEDF9P::default_timeout_ =
-    boost::posix_time::milliseconds(
-        static_cast<int>(ublox_ZEDF9P::kDefaultAckTimeout * 1000));
 
 ublox_ZEDF9P::ublox_ZEDF9P() : configured_(false) {
   subscribeAcks();
@@ -53,17 +47,16 @@ void ublox_ZEDF9P::setWorker(const std::shared_ptr<Worker>& worker) {
   if (worker_) return;
   worker_ = worker;
   worker_->set_debug_level(debug_level_);
-  worker_->setCallback(boost::bind(&CallbackHandlers::readCallback,
-                                   &callbacks_, _1, _2));
+  worker_->setCallback(std::bind(&CallbackHandlers::readCallback, &callbacks_, std::placeholders::_1, std::placeholders::_2));
   configured_ = static_cast<bool>(worker);
 }
 
 void ublox_ZEDF9P::subscribeAcks() {
   // Set NACK handler
-  subscribeId<ublox_msgs::Ack>(boost::bind(&ublox_ZEDF9P::processNack, this, _1),
+  subscribeId<ublox_msgs::Ack>(std::bind(&ublox_ZEDF9P::processNack, this, std::placeholders::_1),
                                ublox_msgs::Message::ACK::NACK);
   // Set ACK handler
-  subscribeId<ublox_msgs::Ack>(boost::bind(&ublox_ZEDF9P::processAck, this, _1),
+  subscribeId<ublox_msgs::Ack>(std::bind(&ublox_ZEDF9P::processAck, this, std::placeholders::_1),
                                ublox_msgs::Message::ACK::ACK);
 }
 
@@ -161,11 +154,12 @@ void ublox_ZEDF9P::close() {
   configured_ = false;
 }
 
-void ublox_ZEDF9P::reset(const boost::posix_time::time_duration& wait) {
+void ublox_ZEDF9P::reset(const unsigned int timeout_milliseconds) {
   worker_.reset();
   configured_ = false;
+  std::chrono::milliseconds duration(timeout_milliseconds);
   // sleep because of undefined behavior after I/O reset
-  boost::this_thread::sleep(wait);
+  std::this_thread::sleep_for(duration);
   resetSerial(port_, baudrate_);
 }
 
@@ -196,10 +190,8 @@ bool ublox_ZEDF9P::poll(uint8_t class_id, uint8_t message_id,
   return true;
 }
 
-bool ublox_ZEDF9P::waitForAcknowledge(unsigned int timeout_seconds,
+bool ublox_ZEDF9P::waitForAcknowledge(const unsigned int timeout_milliseconds,
                              uint8_t class_id, uint8_t msg_id) {
-  unsigned int timeout_milliseconds = timeout_seconds * 1000;
-                              
   if (debug_level_ >= 2) {
     std::cout << "Waiting for ACK " 
               << std::hex << static_cast<int>(class_id)
