@@ -163,6 +163,17 @@ void ublox_ZEDF9P::reset(const unsigned int timeout_milliseconds) {
   resetSerial(port_, baudrate_);
 }
 
+void ublox_ZEDF9P::change_baudrate(unsigned int new_baudrate) {
+  std::cout << ("Resetting u-blox and changing baudrate used") << std::endl;
+  worker_.reset();
+  configured_ = false;
+  std::chrono::milliseconds duration(1000);
+  // sleep because of undefined behavior after I/O reset
+  std::this_thread::sleep_for(duration);
+  initializeSerial(port_, new_baudrate);
+}
+
+
 bool ublox_ZEDF9P::configReset(uint16_t nav_bbr_mask, uint16_t reset_mode) {
   std::cout << ("Resetting u-blox. If device address changes, %s",
            "node must be relaunched.") << std::endl;

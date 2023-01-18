@@ -129,6 +129,12 @@ class ublox_ZEDF9P {
   void reset(const unsigned int timeout_milliseconds);
 
   /**
+   * @brief Changes the baudrate at which the worker reads from the ublox device
+   * @param new_baudrate The new baud rate to use
+   */
+  void change_baudrate(unsigned int new_baudrate);
+
+  /**
    * @brief Send a reset message to the u-blox device.
    * @param nav_bbr_mask The BBR sections to clear, see CfgRST message
    * @param reset_mode The reset type, see CfgRST message

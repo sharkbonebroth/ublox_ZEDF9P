@@ -99,7 +99,38 @@ Worker::Worker(unsigned int baudrate, std::string port, std::size_t buffer_size)
 
   std::cout << SUCCESS << "U-Blox: Opened serial port  " << port << RESET_FORMATTING << std::endl;
 
-  stream_.SetBaudRate(LibSerial::BaudRate::BAUD_115200);
+  LibSerial::BaudRate libserial_baudrate;
+
+  switch(baudrate) {
+    case 4800:
+      libserial_baudrate = LibSerial::BaudRate::BAUD_4800;
+      break;
+    case 9600:
+      libserial_baudrate = LibSerial::BaudRate::BAUD_9600;
+      break;
+    case 19200:
+      libserial_baudrate = LibSerial::BaudRate::BAUD_19200;
+      break;
+    case 38400:
+      libserial_baudrate = LibSerial::BaudRate::BAUD_38400;
+      break;
+    case 57600:
+      libserial_baudrate = LibSerial::BaudRate::BAUD_57600;
+      break;
+    case 115200:
+      libserial_baudrate = LibSerial::BaudRate::BAUD_115200;
+      break;
+    case 230400:
+      libserial_baudrate = LibSerial::BaudRate::BAUD_230400;
+      break;
+    case 460800:
+      libserial_baudrate = LibSerial::BaudRate::BAUD_460800;
+      break;
+    default:
+      throw std::runtime_error("ublox: invalid baudrate") ;
+  }
+
+  stream_.SetBaudRate(libserial_baudrate);
   stream_.SetCharacterSize(LibSerial::CharacterSize::CHAR_SIZE_8);
   stream_.SetParity(LibSerial::Parity::PARITY_NONE);
   stream_.SetStopBits(LibSerial::StopBits::STOP_BITS_1);

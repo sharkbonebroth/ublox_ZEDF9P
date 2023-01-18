@@ -22,3 +22,7 @@ target_link_libraries(ublox_ZEDF9P
 PUBLIC
   dash3rdparty::libserial
 )
+
+if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
+  add_subdirectory(${CMAKE_SOURCE_DIR}/examples ${CMAKE_BINARY_DIR}/examples)
+endif()
