@@ -52,12 +52,10 @@ class CallbackHandler {
   bool wait(const unsigned int timeout_milliseconds) {
     std::chrono::milliseconds duration(timeout_milliseconds);
     std::unique_lock<std::mutex> lock(mutex_);
-    std::cout << "waiting for the condition..." << std::endl;
-    if (condition_.wait_for(lock, duration, []{return true;})) {
-      std::cout << "successfully got condition" << std::endl;
-      return true;
+    if (condition_.wait_for(lock, duration) == std::cv_status::timeout) {
+      return false;
     }
-    return false;
+    return true;
   }
 
   inline void set_debug_level(const int level) {
@@ -210,7 +208,6 @@ class CallbackHandlers {
     if (handler->wait(timeout_milliseconds)) {
       message = handler->get();
       result = true;
-      std::cout << SUCCESS << "GPODEM" << RESET_FORMATTING << std::endl;
     }
     
     // Remove the callback handler

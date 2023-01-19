@@ -12,7 +12,7 @@ int main(int argc, char** argv) {
 
   // Create the main gps object that interfaces with the ublox ZEDF9P sensor
   ublox_ZEDF9P::ublox_ZEDF9P gps_; 
-  gps_.set_debug_level(3);
+  gps_.set_debug_level(2);
   gps_.initializeSerial(argv[1], std::stoi(argv[2]));
 
   // Note that the function below is essentially how the poll_MONVER function implemented in the ublox_ZEDF9P.cpp source file
