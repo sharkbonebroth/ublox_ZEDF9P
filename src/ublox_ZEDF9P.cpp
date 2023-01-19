@@ -97,11 +97,9 @@ void ublox_ZEDF9P::processNack(const ublox_msgs::Ack &m) {
 }
 
 bool ublox_ZEDF9P::test_serial() {
-  std::cout << "BOO" << std::endl;
   Valget test_msg;
   test_msg.add_config_request(0x40520001);
   bool success = send_config_msg(test_msg, true);
-  std::cout << "test serial returned " << success << std::endl;
   return success;
 }
 

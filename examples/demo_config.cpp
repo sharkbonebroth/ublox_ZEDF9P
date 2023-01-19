@@ -19,7 +19,7 @@ void NavPVT_callback(const ublox_msgs::NavPVT& pvt_msg) {
 
 int main(int argc, char** argv) {
   if (argc < 3) {
-    std::cout << "Usage: demo_config_baudrate {device} {baudrate}" << std::endl;
+    std::cout << "Usage: demo_config {device} {baudrate}" << std::endl;
     return 1;
   }
 

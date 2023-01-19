@@ -51,7 +51,11 @@ struct Valget {
 
   enum {
     CLASS_ID = 6u,
-    MESSAGE_ID = 139u
+    MESSAGE_ID = 139u,
+    RAM_LAYER_CODE = 0u,
+    BBR_LAYER_CODE = 1u,
+    FLASH_LAYER_CODE = 2u,
+    DEFAULT_LAYER_CODE = 7u
   };
 
 }; // struct Valget

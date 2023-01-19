@@ -1,5 +1,4 @@
 /// This is a demo program that shows how to subscribe to navpvt messages and call a callback function upon receiving them
-/// It uses config messages and certain library functions
 
 #include "ublox_ZEDF9P/ublox_ZEDF9P.hpp"
 #include "ublox_ZEDF9P/logging.hpp"
@@ -20,7 +19,7 @@ void NavPVT_callback(const ublox_msgs::NavPVT& pvt_msg) {
 
 int main(int argc, char** argv) {
   if (argc < 3) {
-    std::cout << "Usage: demo_config_baudrate {device} {baudrate}" << std::endl;
+    std::cout << "Usage: demo_subscribe_navpvt {device} {baudrate}" << std::endl;
     return 1;
   }
 

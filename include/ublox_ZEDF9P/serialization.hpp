@@ -99,6 +99,7 @@ template <typename T>
 void Serializer<T>::read(const uint8_t *data, uint32_t count, T& message) {
   uint8_t * data_readable = const_cast<uint8_t *>(data);
   T::initialize_from_stream(data_readable, message);
+  std::cout << "calling the intialiszw from steam" << std::endl;
 }
 
 template <typename T>
