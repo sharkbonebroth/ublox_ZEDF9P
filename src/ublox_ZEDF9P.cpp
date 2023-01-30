@@ -38,10 +38,16 @@ using namespace ublox_msgs;
 constexpr static int kSetBaudrateSleepMs = 500;
 
 ublox_ZEDF9P::ublox_ZEDF9P() : configured_(false) {
+  stopping_.store(false);
   subscribeAcks();
+
+  test_serial_thread_ = std::thread([this](){ periodicTestSerial(); });
 }
 
-ublox_ZEDF9P::~ublox_ZEDF9P() { close(); }
+ublox_ZEDF9P::~ublox_ZEDF9P() { 
+  close();
+  test_serial_thread_.join();
+}
 
 void ublox_ZEDF9P::setWorker(const std::shared_ptr<Worker>& worker) {
   if (worker_) return;
@@ -69,13 +75,11 @@ void ublox_ZEDF9P::processAck(const ublox_msgs::Ack &m) {
   // store the ack atomically
   ack_.store(ack, std::memory_order_seq_cst);
   if (debug_level_ >= 2) {
-    std::cout << SUCCESS
-              << "U-blox: received ACK: " 
-              << std::hex << static_cast<int>(m.clsID ) 
-              << " / " 
-              << std::hex << static_cast<int>(m.msgID) 
-              << RESET_FORMATTING
-              << std::endl;
+    spdlog::info(
+      "U-blox: received ACK: {0:x} / {1:x} ",
+      m.clsID,
+      m.msgID
+    );
   }
 }
 
@@ -87,16 +91,17 @@ void ublox_ZEDF9P::processNack(const ublox_msgs::Ack &m) {
   ack.msg_id = m.msgID;
   // store the ack atomically
   ack_.store(ack, std::memory_order_seq_cst);
-  std::cout << FAILURE 
-            << "U-blox: received NACK: " 
-            << std::hex << static_cast<int>(m.clsID) 
-            << " / " 
-            << std::hex << static_cast<int>(m.msgID) 
-            << RESET_FORMATTING
-            << std::endl;
+    spdlog::error(
+      "U-blox: received NACK: {0:x} / {1:x} ",
+      m.clsID,
+      m.msgID
+    );
 }
 
 bool ublox_ZEDF9P::test_serial() {
+  if (!worker_->isOpen()) {
+    return false;
+  }
   Valget test_msg;
   test_msg.add_config_request(0x40520001);
   bool success = send_config_msg(test_msg, true);
@@ -132,13 +137,12 @@ void ublox_ZEDF9P::resetSerial(std::string port, unsigned int baudrate) {
 
 bool ublox_ZEDF9P::setRate(uint8_t class_id, uint8_t message_id, uint8_t rate) {
   if (debug_level_ >= 2) {
-    std::cout << "Setting rate to "
-              << std::dec << static_cast<int>(rate)
-              << " for "
-              << std::hex << static_cast<int>(message_id)
-              << " / "
-              << std::hex << static_cast<int>(class_id)
-              << std::endl;
+    spdlog::info(
+      "Setting rate to {0:d} for {1:x} / {2:x}",
+      rate,
+      message_id,
+      class_id
+    );
   }
   ublox_msgs::CfgMSG cfg_msg;
   cfg_msg.msgClass = class_id;
@@ -150,6 +154,7 @@ bool ublox_ZEDF9P::setRate(uint8_t class_id, uint8_t message_id, uint8_t rate) {
 void ublox_ZEDF9P::close() {
   worker_.reset();
   configured_ = false;
+  stopping_.store(true);
 }
 
 void ublox_ZEDF9P::reset(const unsigned int timeout_milliseconds) {
@@ -162,7 +167,7 @@ void ublox_ZEDF9P::reset(const unsigned int timeout_milliseconds) {
 }
 
 void ublox_ZEDF9P::change_baudrate(unsigned int new_baudrate) {
-  std::cout << ("Resetting u-blox and changing baudrate used") << std::endl;
+  spdlog::info("Resetting u-blox and changing baudrate used");
   worker_.reset();
   configured_ = false;
   std::chrono::milliseconds duration(1000);
@@ -173,8 +178,7 @@ void ublox_ZEDF9P::change_baudrate(unsigned int new_baudrate) {
 
 
 bool ublox_ZEDF9P::configReset(uint16_t nav_bbr_mask, uint16_t reset_mode) {
-  std::cout << ("Resetting u-blox. If device address changes, %s",
-           "node must be relaunched.") << std::endl;
+  spdlog::info("Resetting u-blox. If device address changes, node must be relaunched.");
 
   CfgRST rst;
   rst.navBbrMask = nav_bbr_mask;
@@ -202,11 +206,11 @@ bool ublox_ZEDF9P::poll(uint8_t class_id, uint8_t message_id,
 bool ublox_ZEDF9P::waitForAcknowledge(const unsigned int timeout_milliseconds,
                              uint8_t class_id, uint8_t msg_id) {
   if (debug_level_ >= 2) {
-    std::cout << "Waiting for ACK " 
-              << std::hex << static_cast<int>(class_id)
-              << " / "
-              << std::hex << static_cast<int>(msg_id)
-              << std::endl;
+    spdlog::info(
+      "U-blox: Waiting for ACK: {0:x} / {1:x} ",
+      class_id,
+      msg_id
+    );
   }
 
   std::chrono::time_point<std::chrono::steady_clock> wait_until_time = std::chrono::steady_clock::now();
@@ -236,15 +240,14 @@ ublox_msgs::MONVER ublox_ZEDF9P::poll_MONVER() {
     char swVersion_char[30];
     char hwVersion_char[10];
     std::memcpy(swVersion_char, MONVER_msg.swVersion.data(), 30);
-    std::cout << YELLOW << "ublox_ZEDF9P software version: " << swVersion_char << RESET_FORMATTING << std::endl;
+    spdlog::info("ublox_ZEDF9P software version: {}", swVersion_char);
 
     std::memcpy(hwVersion_char, MONVER_msg.hwVersion.data(), 10);
-    std::cout << YELLOW << "ublox_ZEDF9P hardware version: " << hwVersion_char << RESET_FORMATTING << std::endl;
-    
+    spdlog::info("ublox_ZEDF9P hardware version: {}", hwVersion_char);    
     for (std::array<uint8_t, 30> extended_data: MONVER_msg.extension) {
       char extended_data_char[30];
       std::memcpy(extended_data_char, extended_data.data(), 30);
-      std::cout << YELLOW << extended_data_char << RESET_FORMATTING << std::endl;
+      spdlog::info(extended_data_char);
     }
 
   }
@@ -262,6 +265,29 @@ void ublox_ZEDF9P::poll_Valget(ublox_msgs::Valget& Valget_msg) {
   payload_vec.insert(payload_vec.end(), payload, payload + payload_length);
 
   poll(Valget_msg, payload_vec);
+}
+
+void ublox_ZEDF9P::periodicTestSerial() {
+  while (!stopping_.load()) {
+    if (worker_) {
+      if (!test_serial()) {
+        spdlog::error("Ping Ublox failed... Attempting to reset serial");
+        if (worker_->resetSerialConnection()) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+          for (std::array<int,3> subscribed_message: subscribed_) {
+            setRate(subscribed_message[0], subscribed_message[1], subscribed_message[2]);
+          }
+          spdlog::info("Successfully reset serial");
+        } else {
+          spdlog::error("failed to reset serial");
+        }
+      } 
+    } else {
+      if (debug_level_ > 1)
+        spdlog::info("Ublox: Serial not initialized yet...");
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  }
 }
 
 }  // namespace ublox_ZEDF9P

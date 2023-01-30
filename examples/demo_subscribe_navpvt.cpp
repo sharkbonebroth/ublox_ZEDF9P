@@ -31,6 +31,6 @@ int main(int argc, char** argv) {
   gps_.subscribe<ublox_msgs::NavPVT>(NavPVT_callback);
 
   // Wait for 1 seconds to show that messages are being received
-  std::chrono::milliseconds duration(1000);
+  std::chrono::milliseconds duration(50000);
   std::this_thread::sleep_for(duration);
 }

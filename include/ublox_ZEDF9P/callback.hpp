@@ -31,6 +31,7 @@
 #include <mutex>
 #include <memory>
 #include <functional>
+#include <spdlog/spdlog.h>
 
 #include "ublox_ZEDF9P/serialization.hpp"
 
@@ -98,26 +99,24 @@ class CallbackHandler_ : public CallbackHandler {
     try {
       if (!reader.read<T>(message_)) {
         if (debug_level_ >= 2) {
-          std::cout << "U-Blox Decoder error for " 
-                    << std::hex << static_cast<int>(reader.classId())
-                    << " / "
-                    << std::hex << static_cast<int>(reader.messageId())
-                    << reader.length()
-                    << " bytes "
-                    << std::endl;
+          spdlog::error(
+            "U-blox Decoder error for {0:x} / {1:x} {2:d} bytes",
+            reader.classId(),
+            reader.messageId(),
+            reader.length()
+          );
         }
         condition_.notify_all();
         return;
       }
     } catch (std::runtime_error& e) {
         if (debug_level_ >= 2) {
-          std::cout << "U-Blox Decoder error for " 
-                    << std::hex << static_cast<int>(reader.classId())
-                    << " / "
-                    << std::hex << static_cast<int>(reader.messageId())
-                    << reader.length()
-                    << " bytes "
-                    << std::endl;
+          spdlog::error(
+            "U-blox Decoder error for {0:x} / {1:x} {2:d} bytes",
+            reader.classId(),
+            reader.messageId(),
+            reader.length()
+          );
         }
       condition_.notify_all();
       return;
@@ -229,14 +228,11 @@ class CallbackHandlers {
     while (reader.search() != reader.end() && reader.found()) {
       if (debug_level_ >= 3) {
         // Print the received bytes
-        std::ostringstream oss;
-        for (ublox::Reader::iterator it = reader.pos();
-             it != reader.pos() + reader.length() + 8; ++it)
-          oss << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(*it) << " ";
-        std::cout << "U-blox driver: reading " 
-                  << std::dec <<  reader.length() + 8 
-                  << " bytes\n" << oss.str().c_str() 
-                  << std::endl;
+        spdlog::info(
+          "U-Blox driver: received {0:d} bytes: {1}",
+          reader.length() + 8,
+          spdlog::to_hex(reader.pos(), reader.pos() + reader.length() + 8)
+        );
       }
 
       handle(reader);

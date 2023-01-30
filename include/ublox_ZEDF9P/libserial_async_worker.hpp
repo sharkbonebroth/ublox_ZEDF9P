@@ -10,6 +10,9 @@
 #include <iostream>
 #include <iomanip>
 #include <functional>
+#include <spdlog/spdlog.h>
+#include <spdlog/fmt/bin_to_hex.h>
+#include <atomic>
 
 #include "ublox_ZEDF9P/logging.hpp"
 
@@ -19,7 +22,7 @@ namespace ublox_ZEDF9P {
  * @brief Handles Asynchronous I/O reading and writing.
  */
 class Worker {
- public:
+public:
   typedef std::mutex Mutex;
   typedef std::function<void(unsigned char*, std::size_t&)> Callback;
 
@@ -29,8 +32,8 @@ class Worker {
    * @param port a string describing the port
    * @param buffer_size the size of the input and output buffers
    */
-  inline Worker(unsigned int baudrate, std::string port, std::size_t buffer_size = 8192);
-  inline ~Worker();
+  Worker(unsigned int baudrate, std::string port, std::size_t buffer_size = 8192);
+  ~Worker();
 
   /**
    * @brief Set the callback function which handles input messages.
@@ -43,13 +46,13 @@ class Worker {
    * @param data the buffer of data bytes to send
    * @param size the size of the buffer
    */
-  inline bool send(const unsigned char* data, const unsigned int size);
+  bool send(const unsigned char* data, const unsigned int size);
   /**
    * @brief Wait for incoming messages.
    * @param timeout_milliseconds the maximum time in milliseconds to wait
    */
 
-  inline void wait(const unsigned int timeout_milliseconds);
+  void wait(const unsigned int timeout_milliseconds);
 
   inline bool isOpen() { return stream_.IsOpen(); }
 
@@ -57,18 +60,33 @@ class Worker {
     debug_level_ = debug_level;
   }
 
- protected:
+  /**
+   * @brief Resets the serial connection
+   * 
+   * @return true if successful, false otherwise
+   */
+  bool resetSerialConnection();
+protected:
   /**
    * @brief Read the input strea and process messages read from the input stream.
    */
-  inline void doRead();
+  void doRead();
 
   /**
    * @brief Close the I/O stream.
    */
-  inline void doClose();
+  void doClose();
 
+  /**
+   * @brief Opens and setup the serial port with the relevant baudrate, character size, parity, stop bits and flow control
+   * @return true if the port is successfully opened, false otherwise
+   */
+  bool initializeSerial();
+
+protected:
+  std::string port_;
   LibSerial::SerialStream stream_; //!< The I/O stream
+  LibSerial::BaudRate libserial_baudrate_; 
 
   Mutex read_mutex_; //!< Lock for the input buffer
   std::condition_variable read_condition_;
@@ -83,58 +101,45 @@ class Worker {
 
   Callback read_callback_; //!< Callback function to handle received messages
 
-  bool stopping_; //!< Whether or not the I/O service is closed
+  mutable std::atomic<bool> stopping_; //!< Whether or not the I/O service is closed
   int debug_level_ = 0;
 };
 
-Worker::Worker(unsigned int baudrate, std::string port, std::size_t buffer_size)
-    : stopping_(false){
-
-  // open serial port
-  try {
-    stream_.Open(port);
-  } catch (const LibSerial::OpenFailed& e) {
-    throw std::runtime_error("U-Blox: Worker: Could not open serial port :" + port + " " + e.what());
-  }
-
-  std::cout << SUCCESS << "U-Blox: Opened serial port  " << port << RESET_FORMATTING << std::endl;
-
-  LibSerial::BaudRate libserial_baudrate;
+inline Worker::Worker(unsigned int baudrate, std::string port, std::size_t buffer_size) {
+  stopping_.store(false);
+  
+  port_ = port;
 
   switch(baudrate) {
     case 4800:
-      libserial_baudrate = LibSerial::BaudRate::BAUD_4800;
+      libserial_baudrate_ = LibSerial::BaudRate::BAUD_4800;
       break;
     case 9600:
-      libserial_baudrate = LibSerial::BaudRate::BAUD_9600;
+      libserial_baudrate_ = LibSerial::BaudRate::BAUD_9600;
       break;
     case 19200:
-      libserial_baudrate = LibSerial::BaudRate::BAUD_19200;
+      libserial_baudrate_ = LibSerial::BaudRate::BAUD_19200;
       break;
     case 38400:
-      libserial_baudrate = LibSerial::BaudRate::BAUD_38400;
+      libserial_baudrate_ = LibSerial::BaudRate::BAUD_38400;
       break;
     case 57600:
-      libserial_baudrate = LibSerial::BaudRate::BAUD_57600;
+      libserial_baudrate_ = LibSerial::BaudRate::BAUD_57600;
       break;
     case 115200:
-      libserial_baudrate = LibSerial::BaudRate::BAUD_115200;
+      libserial_baudrate_ = LibSerial::BaudRate::BAUD_115200;
       break;
     case 230400:
-      libserial_baudrate = LibSerial::BaudRate::BAUD_230400;
+      libserial_baudrate_ = LibSerial::BaudRate::BAUD_230400;
       break;
     case 460800:
-      libserial_baudrate = LibSerial::BaudRate::BAUD_460800;
+      libserial_baudrate_ = LibSerial::BaudRate::BAUD_460800;
       break;
     default:
       throw std::runtime_error("ublox: invalid baudrate") ;
   }
 
-  stream_.SetBaudRate(libserial_baudrate);
-  stream_.SetCharacterSize(LibSerial::CharacterSize::CHAR_SIZE_8);
-  stream_.SetParity(LibSerial::Parity::PARITY_NONE);
-  stream_.SetStopBits(LibSerial::StopBits::STOP_BITS_1);
-  stream_.SetFlowControl(LibSerial::FlowControl::FLOW_CONTROL_NONE);
+  initializeSerial();
 
   in_.resize(buffer_size);
   in_buffer_size_ = 0;
@@ -144,22 +149,22 @@ Worker::Worker(unsigned int baudrate, std::string port, std::size_t buffer_size)
   background_thread_ = std::thread([this](){ doRead(); });
 }
 
-Worker::~Worker() {
+inline Worker::~Worker() {
   doClose();
   background_thread_.join();
 }
 
 
-bool Worker::send(const unsigned char* data, const unsigned int size) {
+inline bool Worker::send(const unsigned char* data, const unsigned int size) {
   const std::lock_guard<std::mutex> lock(write_mutex_);
 
   if(size == 0) {
-    std::cout << "Ublox AsyncWorker::send: Size of message to send is 0" << std::endl;
+    spdlog::warn("Ublox AsyncWorker::send: Size of message to send is 0");
     return true;
   }
 
   if (out_.capacity() - out_.size() < size) {
-    std::cout << "Ublox AsyncWorker::send: Output buffer too full to send message" << std::endl;
+    spdlog::warn("Ublox AsyncWorker::send: Output buffer too full to send message");
     return false;
   }
   out_.insert(out_.end(), data, data + size);
@@ -167,81 +172,124 @@ bool Worker::send(const unsigned char* data, const unsigned int size) {
   if (out_.size() == 0) {
     return true;
   }
-  // TODO: im doing this because the rest of this library treats buffers as uint8 arrays. We should refactor this LOL
-  stream_.write(const_cast<char *>(reinterpret_cast<char *>(out_.data())), out_.size());
 
-  if (debug_level_ >= 2) {
-    // Print the data that was sent
-    std::ostringstream oss;
-    for (std::vector<unsigned char>::iterator it = out_.begin();
-         it != out_.end(); ++it)
-      oss << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(*it) << " ";
-    std::cout << "U-Blox driver: sent " 
-              << std::dec << static_cast<int>(out_.size()) 
-              << " bytes: \n" 
-              << oss.str().c_str() 
-              << std::endl;
+  try {
+    stream_.write(const_cast<char *>(reinterpret_cast<char *>(out_.data())), out_.size());
+    stream_.DrainWriteBuffer();
+    if (debug_level_ >= 2) {
+      // Print the data that was sent
+      spdlog::info(
+        "U-Blox driver: sent {0:d} bytes:c {1}",
+        static_cast<int>(out_.size()),
+        spdlog::to_hex(out_.begin(), out_.end())
+      );
+    }
+  } catch (std::runtime_error) {
+    spdlog::error(
+      "U-Blox driver: Could not send {0:d} bytes:c {1}",
+      static_cast<int>(out_.size()),
+      spdlog::to_hex(out_.begin(), out_.end())
+    );
+    
+    return false;
   }
 
-  stream_.DrainWriteBuffer();
   out_.clear();
 
   return true;
 }
 
-void Worker::doRead() {
-  while (!stopping_ && stream_.IsOpen()) {
-    if (stream_.IsDataAvailable()) {
-      const std::lock_guard<std::mutex> lock(read_mutex_);
+inline void Worker::doRead() {
+  while (!stopping_.load()) {
+    if (stream_.IsOpen()) {
+      if (stream_.IsDataAvailable()) {
+        const std::lock_guard<std::mutex> lock(read_mutex_);
 
-      int num_bytes_available = stream_.GetNumberOfBytesAvailable();
-      int max_bytes_transferrable = in_.size() - in_buffer_size_;
-      int bytes_transfered;
+        int num_bytes_available = stream_.GetNumberOfBytesAvailable();
+        int max_bytes_transferrable = in_.size() - in_buffer_size_;
+        int bytes_transfered;
 
-      if (num_bytes_available < max_bytes_transferrable) {
-        bytes_transfered = num_bytes_available;
-      } else {
-        bytes_transfered = max_bytes_transferrable;
-      }
-
-      stream_.read(reinterpret_cast<char *>(in_.data()) + in_buffer_size_, bytes_transfered);
-      
-      if (bytes_transfered > 0) {
-        in_buffer_size_ += bytes_transfered;
-
-        if (debug_level_ >= 4) {
-          std::ostringstream oss;
-          for (std::vector<unsigned char>::iterator it =
-                    in_.begin() + in_buffer_size_ - bytes_transfered;
-                it != in_.begin() + in_buffer_size_; ++it)
-            oss << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(*it) << " ";
-          std::cout << "U-Blox driver: received " << std::dec << bytes_transfered << " bytes\n" << oss.str().c_str() << std::endl;
+        if (num_bytes_available < max_bytes_transferrable) {
+          bytes_transfered = num_bytes_available;
+        } else {
+          bytes_transfered = max_bytes_transferrable;
         }
 
-        if (read_callback_)
-          read_callback_(in_.data(), in_buffer_size_);
+        stream_.read(reinterpret_cast<char *>(in_.data()) + in_buffer_size_, bytes_transfered);
+        
+        if (bytes_transfered > 0) {
+          in_buffer_size_ += bytes_transfered;
 
-        read_condition_.notify_all();
-        stream_.FlushInputBuffer();
+          if (debug_level_ >= 4) {
+            spdlog::info(
+              "U-Blox driver: received {0:d} bytes: {1}",
+              bytes_transfered,
+              spdlog::to_hex(in_.begin() + in_buffer_size_ - bytes_transfered, in_.begin() + in_buffer_size_)
+            );
+          }
+
+          if (read_callback_) { read_callback_(in_.data(), in_buffer_size_); }
+
+          read_condition_.notify_all();
+          stream_.FlushInputBuffer();
+        }
+      } else {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
     } else {
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      spdlog::info("DEAD BODOH!");
     }
   }
 }
 
 
-void Worker::doClose() {
-  std::cout << "Ublox: Worker: Closing serial port" << std::endl;
+inline void Worker::doClose() {
+  spdlog::info("Ublox: Worker: Closing serial port");
   const std::lock_guard<std::mutex> lock(read_mutex_);
-  stopping_ = true;
-  stream_.Close();
+  stopping_.store(true);
+  try {
+    stream_.Close();
+  } catch (LibSerial::NotOpen) {}
 }
 
-void Worker::wait(const unsigned int timeout_milliseconds) {
+inline void Worker::wait(const unsigned int timeout_milliseconds) {
   std::chrono::milliseconds duration(timeout_milliseconds);
   std::unique_lock<std::mutex> lck(read_mutex_);
   read_condition_.wait_for(lck, duration);
+}
+
+inline bool Worker::initializeSerial() {
+  // open serial port
+  try {
+    stream_.Open(port_);
+    spdlog::info("U-Blox: Opened serial port {}", port_);
+
+    stream_.SetBaudRate(libserial_baudrate_);
+    stream_.SetCharacterSize(LibSerial::CharacterSize::CHAR_SIZE_8);
+    stream_.SetParity(LibSerial::Parity::PARITY_NONE);
+    stream_.SetStopBits(LibSerial::StopBits::STOP_BITS_1);
+    stream_.SetFlowControl(LibSerial::FlowControl::FLOW_CONTROL_NONE);
+
+    return true;
+  } catch (const LibSerial::OpenFailed& e) {
+    spdlog::error("U-Blox: Worker: Could not open serial port : {}", port_);
+    return false;
+  }
+}
+
+inline bool Worker::resetSerialConnection() {
+  doClose();
+  if (background_thread_.joinable()) {
+    background_thread_.join();  
+  }
+
+  if (initializeSerial()) {
+    stopping_.store(false);
+    background_thread_ = std::thread([this](){ doRead(); });
+    return true;
+  }
+
+  return false;
 }
 
 }  // namespace ublox_ZEDF9P

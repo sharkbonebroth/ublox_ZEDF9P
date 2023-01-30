@@ -32,6 +32,7 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <spdlog/spdlog.h>
 #include "checksum.hpp"
 
 ///
@@ -175,9 +176,11 @@ class Reader {
         // Ignore messages which exceed the maximum payload length
         if (length() > options_.max_payload_length) {
           // Message exceeds maximum payload length
-          std::cout << ("U-Blox message exceeds maximum payload length %u: "
-	            "0x%02x / 0x%02x", options_.max_payload_length,
-		    classId(), messageId()) << std::endl;
+          spdlog::warn(
+            "U-Blox: Message exceeds maximum payload length {}: {1:x} / {2:x}", 
+            options_.max_payload_length, 
+            classId(), 
+            messageId());
 	  continue;
         }
         break;
@@ -276,8 +279,10 @@ class Reader {
     uint16_t chk;
     if (calculateChecksum(data_ + 2, length() + 4, chk) != this->checksum()) {
       // checksum error
-      std::cout << ("U-Blox read checksum error: 0x%02x / 0x%02x", classId(), 
-                messageId()) << std::endl;
+      spdlog::error(
+        "U-Blox read checksum error: {0:x} / {1:x}",
+        classId(),
+        messageId());
       return false;
     }
 
@@ -329,8 +334,7 @@ class Writer {
     // Check for buffer overflow
     uint32_t length = Serializer<T>::serializedLength(message);
     if (size_ < length + options_.wrapper_length()) {
-      std::cout << ("u-blox write buffer overflow. Message %u / %u not written", 
-                class_id, message_id) << std::endl;;
+      spdlog::warn("ublox write buffer overflow. Message {0:x} / {1:x} not written", class_id, message_id);
       return false;
     }
     // Encode the message and add it to the buffer
@@ -351,8 +355,7 @@ class Writer {
   bool write(const uint8_t* message, uint32_t length, uint8_t class_id, 
              uint8_t message_id) {
     if (size_ < length + options_.wrapper_length()) {
-      std::cout << ("u-blox write buffer overflow. Message %u / %u not written", 
-                class_id, message_id) << std::endl;
+      spdlog::warn("ublox write buffer overflow. Message {0:x} / {1:x} not written", class_id, message_id);
       return false;
     }
     iterator start = data_;

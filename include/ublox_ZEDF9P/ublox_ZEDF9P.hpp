@@ -34,7 +34,6 @@
 #include <vector>
 #include <locale>
 #include <stdexcept>
-#include <atomic>
 
 // u-blox ZEDF9P
 #include "ublox_ZEDF9P/libserial_async_worker.hpp"
@@ -72,13 +71,6 @@ class ublox_ZEDF9P {
   virtual ~ublox_ZEDF9P();
 
   /**
-   * @brief Initialize TCP I/O.
-   * @param host the TCP host
-   * @param port the TCP port
-   */
-  void initializeTcp(std::string host, std::string port);
-
-  /**
    * @brief Initialize UDP I/O.
    * @param host the UDP host
    * @param port the UDP port
@@ -108,7 +100,8 @@ class ublox_ZEDF9P {
   void resetSerial(std::string port, unsigned int baudrate);
 
   /**
-   * @brief Set the rate at which the U-Blox device sends the given message
+   * @brief Send rate is relative to the event a message is registered on. For example, if the rate of a navigation
+            message is set to 2, the message is sent every second navigation solution
    * @param class_id the class identifier of the message
    * @param message_id the message identifier
    * @param rate the updated rate in Hz
@@ -278,6 +271,11 @@ class ublox_ZEDF9P {
    */
   void processNack(const ublox_msgs::Ack &m);
 
+  /**
+   * @brief Calls testSerial() once every second to confirm that the GPS is still being connected
+   */
+  void periodicTestSerial();
+
   //! Processes I/O stream data
   std::shared_ptr<Worker> worker_;
   //! Whether or not the I/O port has been configured
@@ -294,8 +292,16 @@ class ublox_ZEDF9P {
   //! Callback handlers for u-blox messages
   CallbackHandlers callbacks_;
 
-  std::string host_, port_;
+  std::string port_;
   unsigned int baudrate_;
+
+  //! Stores information about subscribed messages and their rates so they can be reinitialized if the device gets disconnected
+  // Store the subscribed messages and their rates in the following order: CLASS_ID, MESSAGE_ID, rate
+  std::vector<std::array<int, 3>> subscribed_;
+
+  //! Thread to periodically check if the device is connected
+  std::thread test_serial_thread_;
+  mutable std::atomic<bool> stopping_;
 };
 
 template <typename T>
@@ -303,6 +309,8 @@ void ublox_ZEDF9P::subscribe(typename CallbackHandler_<T>::Callback callback, ui
   callbacks_.insert<T>(callback);
 
   setRate(T::CLASS_ID, T::MESSAGE_ID, rate);
+
+  subscribed_.push_back({T::CLASS_ID, T::MESSAGE_ID, rate});
 }
 
 template <typename T>
@@ -338,8 +346,7 @@ bool ublox_ZEDF9P::send_config_msg(const ConfigT& message, bool wait) {
   std::vector<unsigned char> out(kWriterSize);
   ublox::Writer writer(out.data(), out.size());
   if (!writer.write(message)) {
-    std::cout << ("Failed to encode config message 0x%02x / 0x%02x",
-              message.CLASS_ID, message.MESSAGE_ID) << std::endl;
+    spdlog::error("Failed to encode config message {0:x} / {1:x}", message.CLASS_ID, message.MESSAGE_ID);
     return false;
   }
   // Send the message to the device
