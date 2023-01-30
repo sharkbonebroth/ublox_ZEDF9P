@@ -36,7 +36,7 @@
 #include <stdexcept>
 
 // u-blox ZEDF9P
-#include "ublox_ZEDF9P/libserial_async_worker.hpp"
+#include "ublox_ZEDF9P/worker.hpp"
 #include "ublox_ZEDF9P/callback.hpp"
 
 // u-blox msgs
@@ -69,13 +69,6 @@ class ublox_ZEDF9P {
 
   ublox_ZEDF9P();
   virtual ~ublox_ZEDF9P();
-
-  /**
-   * @brief Initialize UDP I/O.
-   * @param host the UDP host
-   * @param port the UDP port
-   */
-  void initializeUdp(std::string host, std::string port);
 
   /**
    * @brief Test if the serial port can be read and write from by polling a VALGET message
@@ -166,7 +159,6 @@ class ublox_ZEDF9P {
 
   bool isInitialized() const { return worker_ != 0; }
   bool isConfigured() const { return isInitialized() && configured_; }
-  bool isOpen() const { return worker_->isOpen(); }
 
   /**
    * Poll a u-blox message of the given type.
@@ -209,12 +201,6 @@ class ublox_ZEDF9P {
    */
   bool waitForAcknowledge(unsigned int timeout_milliseconds,
                           uint8_t class_id, uint8_t msg_id);
-
-  /**
-   * @brief Set the callback function which handles raw data.
-   * @param callback the write callback which handles raw data
-   */
-  void setRawDataCallback(const Worker::Callback& callback);
 
   /**
    * @brief Polls the MONVER message to check hw and sw version. 
@@ -276,6 +262,11 @@ class ublox_ZEDF9P {
    */
   void periodicTestSerial();
 
+  /**
+   * @brief Checks if the serial port is connected
+   */
+  bool isSerialConnected() {return static_cast<bool>(serial_connected_);}
+
   //! Processes I/O stream data
   std::shared_ptr<Worker> worker_;
   //! Whether or not the I/O port has been configured
@@ -302,6 +293,8 @@ class ublox_ZEDF9P {
   //! Thread to periodically check if the device is connected
   std::thread test_serial_thread_;
   mutable std::atomic<bool> stopping_;
+
+  mutable std::atomic<bool> serial_connected_;
 };
 
 template <typename T>

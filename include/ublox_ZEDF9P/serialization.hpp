@@ -51,15 +51,15 @@
 namespace ublox {
 
 //! u-blox message Sync A char
-static const uint8_t DEFAULT_SYNC_A = 0xB5; 
+constexpr uint8_t DEFAULT_SYNC_A = 0xB5; 
 //! u-blox message Sync B char
-static const uint8_t DEFAULT_SYNC_B = 0x62; 
+constexpr uint8_t DEFAULT_SYNC_B = 0x62; 
 //! Maximum payload length
-static const uint32_t kMaxPayloadLength = 8184;  // == (buffer size - header length - checksum length)
+constexpr uint32_t kMaxPayloadLength = 8184;  // == (buffer size - header length - checksum length)
 //! Number of bytes in a message header (Sync chars + class ID + message ID)
-static const uint8_t kHeaderLength = 6; 
+constexpr uint8_t kHeaderLength = 6; 
 //! Number of checksum bytes in the u-blox message
-static const uint8_t kChecksumLength = 2; 
+constexpr uint8_t kChecksumLength = 2; 
 
 /**
  * @brief Encodes and decodes messages.

@@ -39,6 +39,7 @@ constexpr static int kSetBaudrateSleepMs = 500;
 
 ublox_ZEDF9P::ublox_ZEDF9P() : configured_(false) {
   stopping_.store(false);
+  serial_connected_.store(false);
   subscribeAcks();
 
   test_serial_thread_ = std::thread([this](){ periodicTestSerial(); });
@@ -120,6 +121,7 @@ void ublox_ZEDF9P::initializeSerial(std::string port, unsigned int baudrate) {
     throw std::runtime_error("U-Blox: Could not read/ write from serial port :" + port);
   }
 
+  serial_connected_.store(true);
   configured_ = true;
 }
 
@@ -272,19 +274,21 @@ void ublox_ZEDF9P::periodicTestSerial() {
     if (worker_) {
       if (!test_serial()) {
         spdlog::error("Ping Ublox failed... Attempting to reset serial");
+        serial_connected_.store(false);
         if (worker_->resetSerialConnection()) {
           std::this_thread::sleep_for(std::chrono::milliseconds(1000));
           for (std::array<int,3> subscribed_message: subscribed_) {
             setRate(subscribed_message[0], subscribed_message[1], subscribed_message[2]);
           }
           spdlog::info("Successfully reset serial");
+          serial_connected_.store(true);
         } else {
           spdlog::error("failed to reset serial");
         }
       } 
     } else {
       if (debug_level_ > 1)
-        spdlog::info("Ublox: Serial not initialized yet...");
+        spdlog::info("Ublox: Serial worker not initialized yet... Call initialize_serial");
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   }
