@@ -68,7 +68,7 @@ class ublox_ZEDF9P {
   constexpr static int kWriterSize = 2056;
 
   ublox_ZEDF9P();
-  virtual ~ublox_ZEDF9P();
+  ~ublox_ZEDF9P();
 
   /**
    * @brief Test if the serial port can be read and write from by polling a VALGET message
@@ -157,7 +157,7 @@ class ublox_ZEDF9P {
   bool read(T& message,
             const unsigned int timeout_milliseconds = default_timeout_milliseconds);
 
-  bool isInitialized() const { return worker_ != 0; }
+  bool isInitialized() const { return worker_ != nullptr; }
   bool isConfigured() const { return isInitialized() && configured_; }
 
   /**
@@ -169,7 +169,7 @@ class ublox_ZEDF9P {
    */
   template <typename ConfigT>
   bool poll(ConfigT& message,
-            const std::vector<uint8_t>& payload = std::vector<uint8_t>(),
+            const std::vector<uint8_t>& payload = {},
             const unsigned int timeout_milliseconds = default_timeout_milliseconds);
   /**
    * Poll a u-blox message.
@@ -180,7 +180,7 @@ class ublox_ZEDF9P {
    * @param timeout the amount of time to wait for the desired message
    */
   bool poll(uint8_t class_id, uint8_t message_id,
-            const std::vector<uint8_t>& payload = std::vector<uint8_t>());
+            const std::vector<uint8_t>& payload = {});
 
   /**
    * @brief Send the given configuration message.
@@ -218,6 +218,11 @@ class ublox_ZEDF9P {
     debug_level_ = debug_level;
     callbacks_.set_debug_level(debug_level);
   }
+
+  /**
+   * @brief Checks if the serial port is connected
+   */
+  bool isSerialConnected() {return static_cast<bool>(serial_connected_);}
 
  private:
   //! Types for ACK/NACK messages, WAIT is used when waiting for an ACK
@@ -261,11 +266,6 @@ class ublox_ZEDF9P {
    * @brief Calls testSerial() once every second to confirm that the GPS is still being connected
    */
   void periodicTestSerial();
-
-  /**
-   * @brief Checks if the serial port is connected
-   */
-  bool isSerialConnected() {return static_cast<bool>(serial_connected_);}
 
   //! Processes I/O stream data
   std::shared_ptr<Worker> worker_;

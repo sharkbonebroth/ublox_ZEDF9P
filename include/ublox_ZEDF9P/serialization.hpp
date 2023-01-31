@@ -28,7 +28,7 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -51,15 +51,15 @@
 namespace ublox {
 
 //! u-blox message Sync A char
-constexpr uint8_t DEFAULT_SYNC_A = 0xB5; 
+constexpr std::uint8_t DEFAULT_SYNC_A = 0xB5; 
 //! u-blox message Sync B char
-constexpr uint8_t DEFAULT_SYNC_B = 0x62; 
+constexpr std::uint8_t DEFAULT_SYNC_B = 0x62; 
 //! Maximum payload length
-constexpr uint32_t kMaxPayloadLength = 8184;  // == (buffer size - header length - checksum length)
+constexpr std::uint32_t kMaxPayloadLength = 8184;  // == (buffer size - header length - checksum length)
 //! Number of bytes in a message header (Sync chars + class ID + message ID)
-constexpr uint8_t kHeaderLength = 6; 
+constexpr std::uint8_t kHeaderLength = 6; 
 //! Number of checksum bytes in the u-blox message
-constexpr uint8_t kChecksumLength = 2; 
+constexpr std::uint8_t kChecksumLength = 2; 
 
 /**
  * @brief Encodes and decodes messages.
@@ -72,8 +72,7 @@ struct Serializer {
    * @param count the number of bytes in the message payload
    * @param message the output message
    */
-  static void read(const uint8_t *data, uint32_t count, 
-                   T& message);
+  static void read(const uint8_t *data, T& message);
   /**
    * @brief Get the length of the message payload in bytes.
    * 
@@ -89,17 +88,15 @@ struct Serializer {
    * @param size the length of the buffer
    * @param message the output message
    */
-  static void write(uint8_t *data, uint32_t size, 
-                    T message);
+  static void write(uint8_t *data, T message);
 };
 
 // TODO: this can defo be implemented such that the read, write and serialized length functs are called straight from the reader/ worker class
 // I just do not do that yet to preserve the same program structure as the original zedf9p driver. For now.
 
 template <typename T>
-void Serializer<T>::read(const uint8_t *data, uint32_t count, T& message) {
-  uint8_t * data_readable = const_cast<uint8_t *>(data);
-  T::initialize_from_stream(data_readable, message);
+void Serializer<T>::read(const uint8_t* data, T& message) {
+  T::initialize_from_stream(data, message);
 }
 
 template <typename T>
@@ -108,7 +105,7 @@ uint32_t Serializer<T>::serializedLength(T message) {
 }
 
 template <typename T>
-void Serializer<T>::write(uint8_t *data, uint32_t size, T message) {
+void Serializer<T>::write(uint8_t *data, T message) {
   T::write_to_data_stream(data, message);
 }
 
@@ -155,7 +152,7 @@ class Reader {
    */
   Reader(const uint8_t *data, uint32_t count, 
          const Options &options = Options()) : 
-      data_(data), count_(count), found_(false), options_(options)
+      data_(data), count_(count), options_(options)
   {
           unused_data_.reserve(1024);
   }
@@ -201,7 +198,7 @@ class Reader {
   {
     if (found_) return true;
     // Verify message is long enough to have sync chars, id, length & checksum
-    if (count_ < options_.wrapper_length()) return false;
+    if (static_cast<int>(count_) < options_.wrapper_length()) return false;
     // Verify the header bits
     if (data_[0] != options_.sync_a || data_[1] != options_.sync_b) 
       return false;
@@ -286,12 +283,10 @@ class Reader {
       return false;
     }
 
-    Serializer<T>::read(data_ + options_.header_length, length(), message);
+    Serializer<T>::read(data_ + options_.header_length, message);
     return true;
   }
   
-  const std::string& getUnusedData() const { return unused_data_; }
-
  private:
   //! The buffer of message bytes
   const uint8_t *data_;
@@ -300,7 +295,7 @@ class Reader {
   //! the number of bytes in the buffer, //! decrement as the buffer is read
   uint32_t count_; 
   //! Whether or not a message has been found
-  bool found_; 
+  bool found_{false}; 
   //! Options representing the sync char values, etc.
   Options options_; 
 };
@@ -332,15 +327,14 @@ class Writer {
                                    uint8_t class_id = T::CLASS_ID, 
                                    uint8_t message_id = T::MESSAGE_ID) {
     // Check for buffer overflow
-    uint32_t length = Serializer<T>::serializedLength(message);
+    const uint32_t length = Serializer<T>::serializedLength(message);
     if (size_ < length + options_.wrapper_length()) {
       spdlog::warn("ublox write buffer overflow. Message {0:x} / {1:x} not written", class_id, message_id);
       return false;
     }
     // Encode the message and add it to the buffer
-    Serializer<T>::write(data_ + options_.header_length, 
-                         size_ - options_.header_length, message);
-    return write(0, length, class_id, message_id);
+    Serializer<T>::write(data_ + options_.header_length, message);
+    return write(nullptr, length, class_id, message_id);
   }
 
   /**

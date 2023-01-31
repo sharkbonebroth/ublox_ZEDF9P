@@ -13,7 +13,7 @@ namespace ublox_msgs {
  * @param data_stream the data stream to initialize the datafield from
  */
 template<typename datafield_type>
-inline void initialize_datafield_from_stream(datafield_type & datafield, uint8_t* & data_stream) {
+inline void initialize_datafield_from_stream(datafield_type & datafield, const uint8_t* & data_stream) {
   std::memcpy(&datafield, data_stream, sizeof(datafield_type));
   data_stream += sizeof(datafield_type); 
 }
@@ -25,7 +25,7 @@ inline void initialize_datafield_from_stream(datafield_type & datafield, uint8_t
  * @overload
  */
 template<typename array_datafield_type, std::size_t array_length>
-inline void initialize_datafield_from_stream(std::array<array_datafield_type, array_length> & datafield, uint8_t* & data_stream) {
+inline void initialize_datafield_from_stream(std::array<array_datafield_type, array_length> & datafield, const uint8_t* & data_stream) {
   std::memcpy(datafield.data(), data_stream, array_length * sizeof(array_datafield_type));
   data_stream += array_length * sizeof(array_datafield_type); 
 }

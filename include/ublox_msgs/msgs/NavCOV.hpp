@@ -11,7 +11,7 @@ struct NavCOV {
    * @param data_stream the start of the byte string from which to decode
    * @param message the NavCOV message object to write to
    */
-  inline static void initialize_from_stream(uint8_t* data_stream, NavCOV &message);
+  inline static void initialize_from_stream(const uint8_t* data_stream, NavCOV &message);
 
   uint32_t iTOW = 0;
   uint8_t version = 0;
@@ -38,7 +38,7 @@ struct NavCOV {
 
 }; // struct NavCOV
 
-void NavCOV::initialize_from_stream(uint8_t* data_stream, NavCOV &message) {
+void NavCOV::initialize_from_stream(const uint8_t* data_stream, NavCOV &message) {
   initialize_datafield_from_stream(message.iTOW, data_stream);
   initialize_datafield_from_stream(message.version, data_stream);
   initialize_datafield_from_stream(message.posCovValid, data_stream);

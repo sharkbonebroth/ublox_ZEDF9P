@@ -13,8 +13,8 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/bin_to_hex.h>
 #include <atomic>
+#include <utility>
 
-#include "ublox_ZEDF9P/logging.hpp"
 
 namespace ublox_ZEDF9P {
 
@@ -39,7 +39,7 @@ public:
    * @brief Set the callback function which handles input messages.
    * @param callback the read callback which handles received messages
    */
-  inline void setCallback(const Callback& callback) { read_callback_ = callback; }
+  void setCallback(Callback&& callback) { read_callback_ = std::move(callback); }
 
   /**
    * @brief Send the data bytes via the I/O stream.
@@ -54,9 +54,9 @@ public:
 
   void wait(const unsigned int timeout_milliseconds);
 
-  inline bool isOpen() { return stream_.IsOpen(); }
+  [[nodiscard]] bool isOpen() { return stream_.IsOpen(); }
 
-  inline void set_debug_level(const int debug_level) {
+  void set_debug_level(const int debug_level) {
     debug_level_ = debug_level;
   }
 
@@ -101,7 +101,7 @@ protected:
 
   Callback read_callback_; //!< Callback function to handle received messages
 
-  mutable std::atomic<bool> stopping_; //!< Whether or not the I/O service is closed
+  std::atomic<bool> stopping_; //!< Whether or not the I/O service is closed
   int debug_level_ = 0;
 };
 
@@ -136,7 +136,7 @@ inline Worker::Worker(unsigned int baudrate, std::string port, std::size_t buffe
       libserial_baudrate_ = LibSerial::BaudRate::BAUD_460800;
       break;
     default:
-      throw std::runtime_error("ublox: invalid baudrate") ;
+      throw std::runtime_error("ublox: invalid baudrate! Valud baudrates are: 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800") ;
   }
 
   initializeSerial();
@@ -151,7 +151,6 @@ inline Worker::Worker(unsigned int baudrate, std::string port, std::size_t buffe
 
 inline Worker::~Worker() {
   doClose();
-  background_thread_.join();
 }
 
 
@@ -205,8 +204,8 @@ inline void Worker::doRead() {
       if (stream_.IsDataAvailable()) {
         const std::lock_guard<std::mutex> lock(read_mutex_);
 
-        int num_bytes_available = stream_.GetNumberOfBytesAvailable();
-        int max_bytes_transferrable = in_.size() - in_buffer_size_;
+        const int num_bytes_available = stream_.GetNumberOfBytesAvailable();
+        const int max_bytes_transferrable = in_.size() - in_buffer_size_;
         int bytes_transfered;
 
         if (num_bytes_available < max_bytes_transferrable) {
@@ -236,20 +235,22 @@ inline void Worker::doRead() {
       } else {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
-    } else {
-      spdlog::info("DEAD BODOH!");
-    }
+    } 
   }
 }
 
 
 inline void Worker::doClose() {
-  spdlog::info("Ublox: Worker: Closing serial port");
-  const std::lock_guard<std::mutex> lock(read_mutex_);
-  stopping_.store(true);
-  try {
+  if (stream_.IsOpen()) {
+    spdlog::info("Ublox: Worker: Closing serial port");
+    const std::lock_guard<std::mutex> lock(read_mutex_);
+    stopping_.store(true);
     stream_.Close();
-  } catch (LibSerial::NotOpen) {}
+  }
+
+  if (background_thread_.joinable()) {
+    background_thread_.join();  
+  }
 }
 
 inline void Worker::wait(const unsigned int timeout_milliseconds) {
@@ -279,10 +280,6 @@ inline bool Worker::initializeSerial() {
 
 inline bool Worker::resetSerialConnection() {
   doClose();
-  if (background_thread_.joinable()) {
-    background_thread_.join();  
-  }
-
   if (initializeSerial()) {
     stopping_.store(false);
     background_thread_ = std::thread([this](){ doRead(); });

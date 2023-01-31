@@ -12,7 +12,7 @@ struct NavPVT {
    * @param data_stream the start of the byte string from which to decode
    * @param message the message object to write to
    */
-  inline static void initialize_from_stream(uint8_t* data_stream, NavPVT &message);
+  inline static void initialize_from_stream(const uint8_t* data_stream, NavPVT &message);
 
   uint32_t iTOW = 0;
   uint16_t year = 0;
@@ -80,7 +80,7 @@ struct NavPVT {
   };
 }; // Struct NavPVT
 
-void NavPVT::initialize_from_stream(uint8_t* data_stream, NavPVT &message) {
+void NavPVT::initialize_from_stream(const uint8_t* data_stream, NavPVT &message) {
   initialize_datafield_from_stream(message.iTOW, data_stream);
   initialize_datafield_from_stream(message.year, data_stream);
   initialize_datafield_from_stream(message.month, data_stream);

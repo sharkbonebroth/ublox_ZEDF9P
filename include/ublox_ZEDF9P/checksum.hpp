@@ -39,7 +39,7 @@ namespace ublox {
  * @param ck_a the checksum a output
  * @param ck_b the checksum b output
  */
-static inline void calculateChecksum(const uint8_t *data, 
+inline void calculateChecksum(const uint8_t *data, 
                                      uint32_t size, 
                                      uint8_t &ck_a, 
                                      uint8_t &ck_b) {
@@ -58,7 +58,7 @@ static inline void calculateChecksum(const uint8_t *data,
  * @param checksum the checksum output
  * @return the checksum
  */
-static inline uint16_t calculateChecksum(const uint8_t *data, 
+inline uint16_t calculateChecksum(const uint8_t *data, 
                                          uint32_t size, 
                                          uint16_t &checksum) {
   uint8_t *byte = reinterpret_cast<uint8_t *>(&checksum);

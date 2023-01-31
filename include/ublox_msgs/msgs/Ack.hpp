@@ -12,7 +12,7 @@ struct Ack {
    * @param data_stream the start of the byte string from which to decode
    * @param message the message object to write to
    */
-  inline static void initialize_from_stream(uint8_t* data_stream, Ack &message);
+  inline static void initialize_from_stream(const uint8_t* data_stream, Ack &message);
 
   uint8_t clsID = 0;
   uint8_t msgID = 0;
@@ -24,7 +24,7 @@ struct Ack {
   };
 }; // struct Ack
 
-void Ack::initialize_from_stream(uint8_t* data_stream, Ack &message) {
+void Ack::initialize_from_stream(const uint8_t* data_stream, Ack &message) {
   initialize_datafield_from_stream(message.clsID, data_stream);
   initialize_datafield_from_stream(message.msgID, data_stream);
 }

@@ -1,12 +1,11 @@
 /// This is a demo program that shows how to poll a configuration using Valget messages
 
 #include "ublox_ZEDF9P/ublox_ZEDF9P.hpp"
-#include "ublox_ZEDF9P/logging.hpp"
 #include "ublox_msgs/ublox_msgs.hpp"
 
 int main(int argc, char** argv) {
   if (argc < 3) {
-    std::cout << "Usage: demo_poll_config {device} {baudrate}" << std::endl;
+    spdlog::error("Usage: demo_poll_config {device} {baudrate}");
     return 1;
   }
 
@@ -18,7 +17,7 @@ int main(int argc, char** argv) {
   ublox_msgs::Valget cfg_request_msg;
   cfg_request_msg.layer = ublox_msgs::Valget::RAM_LAYER_CODE; // Get the configuration from the RAM layer
   if (cfg_request_msg.add_config_request(0x40520001)) {
-    std::cout << SUCCESS << "Successfully added config request" << RESET_FORMATTING << std::endl;
+    spdlog::info("Successfully added config request");
   }
   gps_.poll_Valget(cfg_request_msg);
 
@@ -29,6 +28,6 @@ int main(int argc, char** argv) {
   std::this_thread::sleep_for(duration);
 
   if (cfg_request_msg.get_config_data(baudrate, 0x40520001)) {
-    std::cout << SUCCESS << "Successfully polled baudrate! Baudrate: " << std::dec << static_cast<int>(baudrate) << RESET_FORMATTING << std::endl;
+    spdlog::info("Successfully polled baudrate! Baudrate: {}", static_cast<int>(baudrate));
   }
 }

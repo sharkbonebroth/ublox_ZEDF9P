@@ -11,7 +11,7 @@ struct NavPL {
    * @param data_stream the start of the byte string from which to decode
    * @param message the NavPL message object to write to
    */
-  inline static void initialize_from_stream(uint8_t* data_stream, NavPL &message);
+  inline static void initialize_from_stream(const uint8_t* data_stream, NavPL &message);
 
   uint8_t msgVersion = 0;
   uint8_t tmirCoeff = 0;
@@ -45,7 +45,7 @@ struct NavPL {
 
 }; // struct NavPL
 
-void NavPL::initialize_from_stream(uint8_t* data_stream, NavPL &message) {
+void NavPL::initialize_from_stream(const uint8_t* data_stream, NavPL &message) {
   initialize_datafield_from_stream(message.msgVersion, data_stream);
   initialize_datafield_from_stream(message.tmirCoeff, data_stream);
   initialize_datafield_from_stream(message.tmirExp, data_stream);

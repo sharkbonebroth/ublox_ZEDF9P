@@ -1,31 +1,38 @@
 /// This is a demo program that shows how to configute the ublox ZEDF9P GNSS sensor using config messages
 
 #include "ublox_ZEDF9P/ublox_ZEDF9P.hpp"
-#include "ublox_ZEDF9P/logging.hpp"
 #include "ublox_msgs/ublox_msgs.hpp"
 
 void NavPVT_callback(const ublox_msgs::NavPVT& pvt_msg) {
   bool fixOk = pvt_msg.flags & pvt_msg.FLAGS_GNSS_FIX_OK;
-  std::cout << SUCCESS << "received nav pvt msg! \n" << RESET_FORMATTING
-            << "lat: " << pvt_msg.lat * 1e-7 << "\n"
-            << "lon: " << pvt_msg.lon * 1e-7 << "\n"
-            << "alt: " << pvt_msg.height * 1e-7 << std::endl;
+  spdlog::info("received nav pvt msg!");
+  spdlog::info("lat: {}", pvt_msg.lat * 1e-7);
+  spdlog::info("lon: {}", pvt_msg.lon * 1e-7);
+  spdlog::info("alt: {}", pvt_msg.height * 1e-7);
   if (fixOk) {
-    std::cout << SUCCESS << "valid fix!" << RESET_FORMATTING << std::endl;
+    spdlog::info("VALID FIX");
   } else {
-    std::cout << FAILURE << "invalid fix!" << RESET_FORMATTING << std::endl;
+    spdlog::info("INVALID FIX");
   }
 }
 
 int main(int argc, char** argv) {
   if (argc < 3) {
-    std::cout << "Usage: demo_config {device} {baudrate}" << std::endl;
+    spdlog::error("Usage: demo_config {device} {baudrate}");
     return 1;
   }
 
-  std::cout << "Please enter your new desired baudrate" << std::endl;
+  spdlog::info("Please enter your new desired baudrate");
   unsigned int baudrate;
   std::cin >> baudrate;
+
+  // Check the baudrate to make sure that we are not setting the baudrate to some non-standard value
+  std::array<int, 8> valid_baudrates = {4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800};
+  bool baudrate_is_valid = false;
+  for (int valid_baudrate : valid_baudrates) {
+    if (baudrate == valid_baudrate) {baudrate_is_valid = true; break;}
+  }
+  if (!baudrate_is_valid) {throw std::runtime_error("ublox: invalid baudrate! Valud baudrates are: 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800") ;}
 
   // Create the main gps object that interfaces with the ublox ZEDF9P sensor
   ublox_ZEDF9P::ublox_ZEDF9P gps_; 
@@ -42,7 +49,7 @@ int main(int argc, char** argv) {
   cfg_msg.layers = 3;
   uint32_t new_baudrate = baudrate;
   if (cfg_msg.add_config(0x40520001, new_baudrate)) {
-    std::cout << SUCCESS << "Successfully added configuration for baudrate on uart1" << RESET_FORMATTING << std::endl;
+    spdlog::info("Successfully added configuration for baudrate on uart1. Please remember to set the correct baudrate the next time you start the gps up");
   }
   gps_.send_config_msg(cfg_msg, true);
   // We need to change the baudrate of the gps object to read from the new baudrate

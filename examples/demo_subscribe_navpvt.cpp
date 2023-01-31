@@ -1,31 +1,30 @@
 /// This is a demo program that shows how to subscribe to navpvt messages and call a callback function upon receiving them
 
 #include "ublox_ZEDF9P/ublox_ZEDF9P.hpp"
-#include "ublox_ZEDF9P/logging.hpp"
 #include "ublox_msgs/ublox_msgs.hpp"
 
 void NavPVT_callback(const ublox_msgs::NavPVT& pvt_msg) {
   bool fixOk = pvt_msg.flags & pvt_msg.FLAGS_GNSS_FIX_OK;
-  std::cout << SUCCESS << "received nav pvt msg! \n" << RESET_FORMATTING
-            << "lat: " << pvt_msg.lat * 1e-7 << "\n"
-            << "lon: " << pvt_msg.lon * 1e-7 << "\n"
-            << "alt: " << pvt_msg.height * 1e-7 << std::endl;
+  spdlog::info("received nav pvt msg!");
+  spdlog::info("lat: {}", pvt_msg.lat * 1e-7);
+  spdlog::info("lon: {}", pvt_msg.lon * 1e-7);
+  spdlog::info("alt: {}", pvt_msg.height * 1e-7);
   if (fixOk) {
-    std::cout << SUCCESS << "valid fix!" << RESET_FORMATTING << std::endl;
+    spdlog::info("VALID FIX");
   } else {
-    std::cout << FAILURE << "invalid fix!" << RESET_FORMATTING << std::endl;
+    spdlog::info("INVALID FIX");
   }
 }
 
 int main(int argc, char** argv) {
   if (argc < 3) {
-    std::cout << "Usage: demo_subscribe_navpvt {device} {baudrate}" << std::endl;
+    spdlog::error("Usage: demo_subscribe_navpvt {device} {baudrate}");
     return 1;
   }
 
   // Create the main gps object that interfaces with the ublox ZEDF9P sensor
   ublox_ZEDF9P::ublox_ZEDF9P gps_; 
-  gps_.set_debug_level(1);
+  gps_.set_debug_level(0);
   gps_.initializeSerial(argv[1], std::stoi(argv[2]));
   // Subcribe to NavPVT messages
   gps_.subscribe<ublox_msgs::NavPVT>(NavPVT_callback);

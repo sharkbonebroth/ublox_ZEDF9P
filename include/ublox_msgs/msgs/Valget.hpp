@@ -31,7 +31,7 @@ struct Valget {
    * @param data_stream the start of the byte string from which to decode
    * @param message the message object to write to
    */
-  inline static void initialize_from_stream(uint8_t* data_stream, Valget &message);
+  inline static void initialize_from_stream(const uint8_t* data_stream, Valget &message);
 
   /**
    * @brief Given a key, get config data from received_configs
@@ -81,7 +81,7 @@ bool Valget::add_config_request(uint32_t key) {
   return true;
 }
 
-void Valget::initialize_from_stream(uint8_t* data_stream, Valget &message) {
+void Valget::initialize_from_stream(const uint8_t* data_stream, Valget &message) {
   int num_bytes_to_read = received_message_length(data_stream) - 4;
 
   initialize_datafield_from_stream(message.version, data_stream);
@@ -89,7 +89,7 @@ void Valget::initialize_from_stream(uint8_t* data_stream, Valget &message) {
   initialize_datafield_from_stream(message.position, data_stream);
 
   while (num_bytes_to_read > 4) {
-    uint32_t key = *reinterpret_cast<uint32_t*>(data_stream);
+    const uint32_t key = *reinterpret_cast<const uint32_t*>(data_stream);
 
     data_stream += 4;
     num_bytes_to_read -= 4;

@@ -28,16 +28,15 @@
 //==============================================================================
 
 #include "ublox_ZEDF9P/ublox_ZEDF9P.hpp"
-#include "ublox_ZEDF9P/logging.hpp"
 
 namespace ublox_ZEDF9P {
 
 using namespace ublox_msgs;
 
 //! Sleep time [ms] after setting the baudrate
-constexpr static int kSetBaudrateSleepMs = 500;
+// constexpr static int kSetBaudrateSleepMs = 500;
 
-ublox_ZEDF9P::ublox_ZEDF9P() : configured_(false) {
+ublox_ZEDF9P::ublox_ZEDF9P() {
   stopping_.store(false);
   serial_connected_.store(false);
   subscribeAcks();
@@ -115,7 +114,7 @@ void ublox_ZEDF9P::initializeSerial(std::string port, unsigned int baudrate) {
 
   // Set the I/O worker
   if (worker_) return;
-  setWorker(std::shared_ptr<Worker>(new Worker(baudrate, port)));
+  setWorker(std::make_shared<Worker>(baudrate, port));
 
   if (!test_serial()) {
     throw std::runtime_error("U-Blox: Could not read/ write from serial port :" + port);
@@ -128,7 +127,7 @@ void ublox_ZEDF9P::initializeSerial(std::string port, unsigned int baudrate) {
 void ublox_ZEDF9P::resetSerial(std::string port, unsigned int baudrate) {
   // Set the I/O worker
   if (worker_) return;
-  setWorker(std::shared_ptr<Worker>(new Worker(baudrate, port)));
+  setWorker(std::make_shared<Worker>(baudrate, port));
 
   if (!test_serial()) {
     throw std::runtime_error("U-Blox: Reset serial port: Could not read/ write from serial port :" + port);
@@ -169,18 +168,22 @@ void ublox_ZEDF9P::reset(const unsigned int timeout_milliseconds) {
 }
 
 void ublox_ZEDF9P::change_baudrate(unsigned int new_baudrate) {
-  spdlog::info("Resetting u-blox and changing baudrate used");
+  spdlog::info("{} - Resetting u-blox and changing baudrate used", __PRETTY_FUNCTION__);
+  stopping_.store(true);
+  test_serial_thread_.join();
   worker_.reset();
   configured_ = false;
   std::chrono::milliseconds duration(1000);
   // sleep because of undefined behavior after I/O reset
   std::this_thread::sleep_for(duration);
   initializeSerial(port_, new_baudrate);
+  stopping_.store(false);
+  test_serial_thread_ = std::thread([this](){ periodicTestSerial(); });
 }
 
 
 bool ublox_ZEDF9P::configReset(uint16_t nav_bbr_mask, uint16_t reset_mode) {
-  spdlog::info("Resetting u-blox. If device address changes, node must be relaunched.");
+  spdlog::info("{} - Resetting u-blox. If device address changes, node must be relaunched.", __PRETTY_FUNCTION__);
 
   CfgRST rst;
   rst.navBbrMask = nav_bbr_mask;
@@ -227,10 +230,9 @@ bool ublox_ZEDF9P::waitForAcknowledge(const unsigned int timeout_milliseconds,
     worker_->wait(timeout_milliseconds);
     ack = ack_.load(std::memory_order_seq_cst);
   }
-  bool result = ack.type == ACK
-                && ack.class_id == class_id
-                && ack.msg_id == msg_id;
-  return result;
+  return ack.type == ACK
+          && ack.class_id == class_id
+          && ack.msg_id == msg_id;
 }
 
 
@@ -246,7 +248,7 @@ ublox_msgs::MONVER ublox_ZEDF9P::poll_MONVER() {
 
     std::memcpy(hwVersion_char, MONVER_msg.hwVersion.data(), 10);
     spdlog::info("ublox_ZEDF9P hardware version: {}", hwVersion_char);    
-    for (std::array<uint8_t, 30> extended_data: MONVER_msg.extension) {
+    for (const auto& extended_data: MONVER_msg.extension) {
       char extended_data_char[30];
       std::memcpy(extended_data_char, extended_data.data(), 30);
       spdlog::info(extended_data_char);
@@ -260,35 +262,32 @@ ublox_msgs::MONVER ublox_ZEDF9P::poll_MONVER() {
 void ublox_ZEDF9P::poll_Valget(ublox_msgs::Valget& Valget_msg) {
   int payload_length = static_cast<int>(ublox_msgs::Valget::serialized_length(Valget_msg));
 
-  uint8_t payload[payload_length];
-  ublox_msgs::Valget::write_to_data_stream(payload, Valget_msg);
+  std::vector<std::uint8_t> payload(payload_length);
+  ublox_msgs::Valget::write_to_data_stream(payload.data(), Valget_msg);
 
-  std::vector<uint8_t> payload_vec;
-  payload_vec.insert(payload_vec.end(), payload, payload + payload_length);
-
-  poll(Valget_msg, payload_vec);
+  poll(Valget_msg, payload);
 }
 
 void ublox_ZEDF9P::periodicTestSerial() {
   while (!stopping_.load()) {
     if (worker_) {
       if (!test_serial()) {
-        spdlog::error("Ping Ublox failed... Attempting to reset serial");
+        spdlog::error("{} - Ping Ublox failed... Attempting to reset serial", __PRETTY_FUNCTION__);
         serial_connected_.store(false);
         if (worker_->resetSerialConnection()) {
           std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-          for (std::array<int,3> subscribed_message: subscribed_) {
+          for (const auto& subscribed_message: subscribed_) {
             setRate(subscribed_message[0], subscribed_message[1], subscribed_message[2]);
           }
-          spdlog::info("Successfully reset serial");
+          spdlog::info("{} - Successfully reset serial", __PRETTY_FUNCTION__);
           serial_connected_.store(true);
         } else {
-          spdlog::error("failed to reset serial");
+          spdlog::error("{} - Failed to reset serial", __PRETTY_FUNCTION__);
         }
       } 
     } else {
       if (debug_level_ > 1)
-        spdlog::info("Ublox: Serial worker not initialized yet... Call initialize_serial");
+        spdlog::info("{} - Serial worker not initialized yet... Call initialize_serial", __PRETTY_FUNCTION__);
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   }

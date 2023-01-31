@@ -15,7 +15,7 @@ struct MONVER {
    * @param data_stream the start of the byte string from which to decode
    * @param message the MONVER object to write to
    */
-  inline static void initialize_from_stream(uint8_t* data_stream, MONVER &message);
+  inline static void initialize_from_stream(const uint8_t* data_stream, MONVER &message);
 
   std::array<uint8_t, 30> swVersion;
   std::array<uint8_t, 10> hwVersion;
@@ -33,7 +33,7 @@ struct MONVER {
 
 }; // struct MONVER
 
-void MONVER::initialize_from_stream(uint8_t* data_stream, MONVER &message) {
+void MONVER::initialize_from_stream(const uint8_t* data_stream, MONVER &message) {
   int num_bytes_to_read = received_message_length(data_stream) - 40;
 
   initialize_datafield_from_stream(message.swVersion, data_stream);
